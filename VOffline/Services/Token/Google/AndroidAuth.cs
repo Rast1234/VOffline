@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using log4net;
-using RestSharp;
-using VOffline.Models;
+﻿using log4net;
 using VOffline.Models.Google;
 
 namespace VOffline.Services.Google

@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Linq;
-using VOffline.Models;
 using VOffline.Models.Google;
 
 namespace VOffline.Services.Google

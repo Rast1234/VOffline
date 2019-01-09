@@ -1,5 +1,4 @@
 ﻿using log4net;
-using VOffline.Models;
 using VOffline.Models.Vk;
 using VOffline.Services.Google;
 using VOffline.Services.Vk;
@@ -10,14 +9,12 @@ namespace VOffline.Services
     {
         private AndroidAuth AndroidAuth { get; }
         private VkTokenReceiver VkTokenReceiver { get; }
-        private FileCache<VkCredentials> VkCredentials { get; }
         public FileCache<VkToken> VkToken { get; }
 
-        public TokenMagic(AndroidAuth androidAuth, VkTokenReceiver vkTokenReceiver, FileCache<VkCredentials> vkCredentials, FileCache<VkToken> vkToken)
+        public TokenMagic(AndroidAuth androidAuth, VkTokenReceiver vkTokenReceiver, FileCache<VkToken> vkToken)
         {
             AndroidAuth = androidAuth;
             VkTokenReceiver = vkTokenReceiver;
-            VkCredentials = vkCredentials;
             VkToken = vkToken;
         }
 

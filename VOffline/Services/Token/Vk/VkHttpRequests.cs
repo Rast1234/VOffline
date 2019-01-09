@@ -1,19 +1,22 @@
 ﻿using System;
 using log4net;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using RestSharp;
-using VOffline.Models;
 using VOffline.Models.Vk;
+using RestClient = RestSharp.RestClient;
 
 namespace VOffline.Services.Vk
 {
     public class VkHttpRequests
     {
-        private FileCache<VkCredentials> VkCredentialsCache { get; }
+        private readonly string userAgent;
+        private VkCredentials VkCredentials { get; }
 
-        public VkHttpRequests(FileCache<VkCredentials> vkCredentialsCache)
+        public VkHttpRequests(IOptionsSnapshot<VkCredentials> vkCredentials, UserAgentProvider userAgentProvider)
         {
-            VkCredentialsCache = vkCredentialsCache;
+            userAgent = userAgentProvider.UserAgent;
+            VkCredentials = vkCredentials.Value;
         }
 
         public string GetNonRefreshedToken(ILog log)
@@ -21,12 +24,12 @@ namespace VOffline.Services.Vk
             var client = GetClient("https://oauth.vk.com/token");
             var request = new RestRequest(Method.GET);
             request.AddQueryParameter("grant_type", "password");
-            request.AddQueryParameter("client_id", "2685278");
+            request.AddQueryParameter("client_id", ClientId.ToString());
             request.AddQueryParameter("client_secret", "lxhD8OD7dMsqtXIm5IUY");
-            request.AddQueryParameter("username", VkCredentialsCache.Value.Login);
-            request.AddQueryParameter("password", VkCredentialsCache.Value.Password);
+            request.AddQueryParameter("username", VkCredentials.Login);
+            request.AddQueryParameter("password", VkCredentials.Password);
             request.AddQueryParameter("v", VkApiVersion);
-            request.AddQueryParameter("scope", "audio,offline");
+            request.AddQueryParameter("scope", Scope);
             log.Debug($"request non-refreshed token");
             var response = client.Execute(request);
             if (!response.IsSuccessful)
@@ -71,15 +74,16 @@ namespace VOffline.Services.Vk
         {
             var client = new RestClient(url)
             {
-                UserAgent = VkUserAgent
+                UserAgent = userAgent
             };
             client.RemoteCertificateValidationCallback += (sender, certificate, chain, errors) => true;
             return client;
         }
 
-        private const string VkUserAgent = "KateMobileAndroid/51.2 lite-443 (Android 4.4.2; SDK 19; x86; unknown Android SDK built for x86; en)";
-        private const string VkApiVersion = "5.72";
-
         
+
+        public const string VkApiVersion = "5.72";
+        public const ulong ClientId = 2685278;
+        public const string Scope = "audio,offline,notify,friends,photos,video,stories,pages,status,notes,messages,wall,ads,docs,groups,notifications,stats,email,market";
     }
 }
