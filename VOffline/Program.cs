@@ -23,6 +23,7 @@ using VOffline.Models.Vk;
 using VOffline.Services;
 using VOffline.Services.Google;
 using VOffline.Services.Handlers;
+using VOffline.Services.Storage;
 using VOffline.Services.Vk;
 
 namespace VOffline
@@ -54,8 +55,11 @@ namespace VOffline
                 serviceCollection.AddSingleton<GoogleHttpRequests>();
                 serviceCollection.AddSingleton<VkHttpRequests>();
                 serviceCollection.AddSingleton<VkApiUtils>();
-                serviceCollection.AddSingleton<UserAgentProvider>();
+                serviceCollection.AddSingleton<ConstantsProvider>();
                 serviceCollection.AddSingleton<VkApi>(_ => VkApiFactory(token));
+                serviceCollection.AddSingleton<FilesystemTools>();
+                serviceCollection.AddSingleton<DownloadQueueProvider>();
+                serviceCollection.AddSingleton<BackgroundDownloader>();
 
                 serviceCollection.AddTransient(provider => LogManager.GetLogger(Assembly.GetEntryAssembly(), typeof(Program)));
                 serviceCollection.AddTransient<AndroidAuth>();
@@ -67,6 +71,7 @@ namespace VOffline
 
                 var services = serviceCollection.BuildServiceProvider();
                 await services.GetRequiredService<Logic>().Run(token, log);
+                
                 return 0;
             }
             catch (Exception e)
@@ -80,7 +85,7 @@ namespace VOffline
         {
             // VkNet uses its own DI for internal services
             var sc = new ServiceCollection();
-            sc.AddSingleton<UserAgentProvider>();
+            sc.AddSingleton<ConstantsProvider>();
             sc.AddSingleton<IRestClient, RestClientWithUserAgent>();
             sc.AddSingleton<IAwaitableConstraint, CancellableConstraint>(_ => new CancellableConstraint(3, TimeSpan.FromSeconds(1.3), token));
             sc.AddSingleton<ILoggerFactory, LoggerFactory>();
@@ -89,7 +94,7 @@ namespace VOffline
             {
                 builder.ClearProviders();
                 builder.SetMinimumLevel(LogLevel.Debug);
-                builder.AddLog4Net();
+                //builder.AddLog4Net();
             });
             return new VkApi(sc);
         }

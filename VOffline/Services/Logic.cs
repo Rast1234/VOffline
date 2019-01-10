@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,7 @@ using VkNet.Model.RequestParams;
 using VOffline.Models;
 using VOffline.Models.Storage;
 using VOffline.Services.Handlers;
+using VOffline.Services.Storage;
 using VOffline.Services.Vk;
 
 namespace VOffline.Services
@@ -23,14 +25,18 @@ namespace VOffline.Services
         private readonly TokenMagic tokenMagic;
         private readonly VkApi vkApi;
         private readonly VkApiUtils vkApiUtils;
+        private readonly BackgroundDownloader downloader;
+        private readonly FilesystemTools filesystemTools;
         private readonly AudioHandler audioHandler;
 
-        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, AudioHandler audioHandler, IOptionsSnapshot<Settings> settings)
+        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, AudioHandler audioHandler, IOptionsSnapshot<Settings> settings)
         {
             this.settings = settings.Value;
             this.tokenMagic = tokenMagic;
             this.vkApi = vkApi;
             this.vkApiUtils = vkApiUtils;
+            this.downloader = downloader;
+            this.filesystemTools = filesystemTools;
             this.audioHandler = audioHandler;
         }
 
@@ -54,35 +60,37 @@ namespace VOffline.Services
                 .Distinct()
                 .ToImmutableHashSet();
             log.Debug($"Processing {JsonConvert.SerializeObject(modes)} for {JsonConvert.SerializeObject(ids)}");
+            var downloaderTask = downloader.Process(token, log);
 
+            var rootDir = filesystemTools.MkDir(settings.OutputPath);
             foreach (var id in ids)
             {
+                
                 var name = await vkApiUtils.GetName(id);
-                var storage = new Storage(name);
-                log.Info($"id [{id}], name [{name}], path [{storage.FullPath}]");
+                var workDir = filesystemTools.CreateSubdir(rootDir, name, false);
+                log.Info($"id [{id}], name [{name}], path [{workDir.FullName}]");
                 foreach (var mode in modes)
                 {
-                    var subStorage = storage.Descend(mode.ToString(), false);
-                    await ProcessTarget(id, subStorage, mode, token, log);
+                    var modeDir = filesystemTools.CreateSubdir(workDir, mode.ToString(), false);
+                    await ProcessTarget(id, modeDir, mode, token, log);
                 }
             }
 
-            //var audio = vkApi.Audio.Get(new AudioGetParams()
-            //{
-            //    OwnerId = 1
-            //});
-            //log.Debug(JsonConvert.SerializeObject(audio, Formatting.Indented));
-
+            var downloadErrors = await downloaderTask;
+            foreach (var downloadError in downloadErrors)
+            {
+                log.Warn($"Failed {downloadError.DesiredName}", downloadError.Errors.LastOrDefault());
+            }
         }
 
-        private async Task ProcessTarget(long id, Storage storage, Mode mode, CancellationToken token, ILog log)
+        private async Task ProcessTarget(long id, DirectoryInfo dir, Mode mode, CancellationToken token, ILog log)
         {
             switch (mode)
             {
                 case Mode.Wall:
                     break;
                 case Mode.Audio:
-                    await audioHandler.ProcessAudio(id, storage, token, log);
+                    await audioHandler.ProcessAudio(id, dir, token, log);
                     break;
                 case Mode.All:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, "This mode should have been replaced before processing");

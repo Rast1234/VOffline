@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using Newtonsoft.Json;
+using Nito.AsyncEx;
 using RestSharp;
 using VkNet;
 using VkNet.Model;
@@ -14,6 +15,7 @@ using VkNet.Model.Attachments;
 using VkNet.Model.RequestParams;
 using VkNet.Utils;
 using VOffline.Models.Storage;
+using VOffline.Services.Storage;
 using VOffline.Services.Vk;
 using RestClient = RestSharp.RestClient;
 
@@ -22,56 +24,25 @@ namespace VOffline.Services.Handlers
     public class AudioHandler
     {
         private readonly VkApi vkApi;
+        private readonly FilesystemTools filesystemTools;
+        private readonly DownloadQueueProvider downloadQueueProvider;
 
-        public AudioHandler(VkApi vkApi)
+        public AudioHandler(VkApi vkApi, FilesystemTools filesystemTools, DownloadQueueProvider downloadQueueProvider)
         {
             this.vkApi = vkApi;
+            this.filesystemTools = filesystemTools;
+            this.downloadQueueProvider = downloadQueueProvider;
         }
 
 
-        public async Task ProcessAudio(long id, Storage storage, CancellationToken token, ILog log)
+        public async Task ProcessAudio(long id, DirectoryInfo dir, CancellationToken token, ILog log)
         {
+            // TODO: continuation/recovery? at least on album level? maybe create and detect some 'completeness' file?
             var allPlaylists = await GetAllPlaylists(id, token, log);
-            var throttler = new Throttler();
-            foreach (var playlist in allPlaylists)
-            {
-                var playlistStorage = storage.Descend(playlist.Name, true);
-                var downloadTasks = playlist.Tracks
-                    .Select(async track => await Download(track, playlistStorage, token, log))
-                    .ToArray();
-                await throttler.ProcessWithThrottling(downloadTasks, 3, token);
-            }
-        }
-
-        private async Task Download(Track track, Storage playlistStorage, CancellationToken token, ILog log)
-        {
-            return;
-            var trackName = string.Join(" - ", new[] { track.Artist, track.Name }.Where(x => !string.IsNullOrEmpty(x)));
-            if (track.Url != null)
-            {
-                var content = await Retrier.Retry(async () =>
-                {
-                    var client = new RestClient($"{track.Url.Scheme}://{track.Url.Authority}");
-                    var response = await client.ExecuteGetTaskAsync(new RestRequest(track.Url.PathAndQuery), token);
-                    response.ThrowIfSomethingWrong();
-
-                    return response.RawBytes;
-                }, 3, TimeSpan.FromSeconds(5), token, log);
-
-                var file = playlistStorage.GetFile($"{trackName}.mp3").FullName;
-                log.Debug($"Saving {file}");
-                await File.WriteAllBytesAsync(file, content, token);
-            }
-            else
-            {
-                playlistStorage.GetFile($"{trackName}.mp3.deleted");
-            }
-
-            if (track.Lyrics != null)
-            {
-                var lyricsFile = playlistStorage.GetFile($"{trackName}.txt").FullName;
-                await File.WriteAllTextAsync(lyricsFile, track.Lyrics, token);
-            }
+            var allDownloadTasks = allPlaylists
+                .SelectMany(p => p.ToDownloads(filesystemTools, dir))
+                .Select(d => downloadQueueProvider.Pending.EnqueueAsync(d, token));
+            await Task.WhenAll(allDownloadTasks);
         }
 
         private async Task<IReadOnlyList<Playlist>> GetAllPlaylists(long id, CancellationToken token, ILog log)
@@ -101,8 +72,7 @@ namespace VOffline.Services.Handlers
                 var audioTasks = vkAudios.Select(async audio =>
                 {
                     token.ThrowIfCancellationRequested();
-                    var lyrics = await GetLyrics(audio, log);
-                    return new Track(audio, lyrics);
+                    return new Track(audio);
                 });
                 var tracks = await Task.WhenAll(audioTasks);
                 return new Playlist(playlist, tracks);
@@ -113,20 +83,18 @@ namespace VOffline.Services.Handlers
         public async Task<IReadOnlyList<Track>> GetTracks(long id, HashSet<long> tracksInPlaylists, CancellationToken token, ILog log)
         {
             // TODO: handle paging if api returns partial result
-            log.Debug("Getting all tracks not in playlists");
             var vkAudios = await vkApi.Audio.GetAsync(new AudioGetParams()
             {
                 OwnerId = id
             });
+            log.Debug($"Got {vkAudios.Count} tracks not in playlists for {id}");
             ThrowIfCountMismatch(vkAudios.TotalCount, vkAudios.Count);
             var trackTasks = vkAudios
                 .Where(t => !tracksInPlaylists.Contains(t.Id.Value))
                 .Select(async audio =>
                 {
-                    // TODO: filter out extra tracks here
-                    var lyrics = await GetLyrics(audio, log);
                     token.ThrowIfCancellationRequested();
-                    return new Track(audio, lyrics);
+                    return new Track(audio);
                 });
             return await Task.WhenAll(trackTasks);
         }
@@ -135,6 +103,7 @@ namespace VOffline.Services.Handlers
         {
             var pageSize = 200;
             var playlistResponse = await vkApi.Audio.GetPlaylistsAsync(id, (uint)pageSize);
+            log.Debug($"Got {playlistResponse.Count}/{playlistResponse.TotalCount} tracks in playlist {id}");
 
             var total = (int)playlistResponse.TotalCount;
             var result = new List<AudioPlaylist>(total);
@@ -145,8 +114,9 @@ namespace VOffline.Services.Handlers
                 .Select(pageNumber => pageNumber * pageSize)
                 .Select(async offset =>
                 {
-                    log.Debug($"Playlists at offset {offset}");
+                    //log.Debug($"Playlists at offset {offset}");
                     var page = await vkApi.Audio.GetPlaylistsAsync(id, (uint)pageSize, (uint)offset);
+                    log.Debug($"Got {page.Count}/{playlistResponse.TotalCount} tracks in playlist {id} at offset {offset}");
                     token.ThrowIfCancellationRequested();  // not sure if this is needed here
                     return page;
                 });
@@ -161,24 +131,22 @@ namespace VOffline.Services.Handlers
 
         private async Task<IReadOnlyList<Audio>> ExpandPlaylist(AudioPlaylist playlist, ILog log)
         {
-            log.Debug($"Expanding {playlist.Title}");
+            
             var vkAudios = await vkApi.Audio.GetAsync(new AudioGetParams()
             {
                 AlbumId = playlist.Id,
                 OwnerId = playlist.OwnerId,
             });
+            log.Debug($"Expanded {playlist.Title}: {vkAudios.TotalCount}");
             ThrowIfCountMismatch(vkAudios.TotalCount, vkAudios.Count);
             return vkAudios;
         }
 
-        private async Task<Lyrics> GetLyrics(Audio audio, ILog log)
+        private async Task<Lyrics> GetLyrics(long lyricsId, ILog log)
         {
-            if (audio.LyricsId == null)
-            {
-                return null;
-            }
-            log.Debug($"Lyrics for {audio.Title}");
-            return await vkApi.Audio.GetLyricsAsync(audio.LyricsId.Value);
+            var lyrics = await vkApi.Audio.GetLyricsAsync(lyricsId);
+            log.Debug($"Got lyrics for {lyricsId}");
+            return lyrics;
         }
 
         private static void ThrowIfCountMismatch(decimal expectedTotal, decimal resultCount)

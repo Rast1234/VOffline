@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using VkNet.Model;
+using VOffline.Services.Storage;
 
 namespace VOffline.Models.Storage
 {
@@ -30,6 +33,22 @@ namespace VOffline.Models.Storage
         }
 
         public IReadOnlyList<Track> Tracks { get; set; }
+
+        public IEnumerable<IDownload> ToDownloads(FilesystemTools filesystemTools, DirectoryInfo dir)
+        {
+            var playlistDir = filesystemTools.CreateSubdir(dir, Name, true);
+            if (Cover != null)
+            {
+                // TODO: i guess it's always jpeg?
+                var ext = Path.HasExtension(Cover.AbsoluteUri) ? Path.GetExtension(Cover.AbsoluteUri) : ".jpg";
+                yield return new Download(Cover, playlistDir, $"playlist_cover{ext}");
+            }
+
+            foreach (var download in Tracks.SelectMany(t => t.ToDownloads(filesystemTools, playlistDir)))
+            {
+                yield return download;
+            }
+        }
 
         private static Uri GetBestImage(AudioCover cover)
         {

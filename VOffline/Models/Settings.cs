@@ -10,6 +10,7 @@ namespace VOffline.Models
     {
         public List<string> Targets { get; set; }
         public List<Mode> Modes { get; set; }
+        public string OutputPath { get; set; }
 
         public ImmutableHashSet<Mode> GetWorkingModes()
         {

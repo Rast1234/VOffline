@@ -55,7 +55,7 @@ namespace VOffline.Services.Vk
                 {
                     await Task.Delay(delay, cts.Token);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     awaitableConstraint._semaphore.Release();
                     throw;

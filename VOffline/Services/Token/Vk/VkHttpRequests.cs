@@ -13,9 +13,9 @@ namespace VOffline.Services.Vk
         private readonly string userAgent;
         private VkCredentials VkCredentials { get; }
 
-        public VkHttpRequests(IOptionsSnapshot<VkCredentials> vkCredentials, UserAgentProvider userAgentProvider)
+        public VkHttpRequests(IOptionsSnapshot<VkCredentials> vkCredentials, ConstantsProvider constantsProvider)
         {
-            userAgent = userAgentProvider.UserAgent;
+            userAgent = constantsProvider.UserAgent;
             VkCredentials = vkCredentials.Value;
         }
 

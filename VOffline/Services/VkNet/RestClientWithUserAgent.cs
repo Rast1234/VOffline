@@ -20,11 +20,11 @@ namespace VOffline.Services.Vk
         private string userAgent;
 
         /// <inheritdoc />
-        public RestClientWithUserAgent(ILogger<RestClient> logger, IWebProxy proxy, UserAgentProvider userAgentProvider)
+        public RestClientWithUserAgent(ILogger<RestClient> logger, IWebProxy proxy, ConstantsProvider constantsProvider)
         {
             _logger = logger;
             Proxy = proxy;
-            userAgent = userAgentProvider.UserAgent;
+            userAgent = constantsProvider.UserAgent;
         }
 
         /// <inheritdoc />

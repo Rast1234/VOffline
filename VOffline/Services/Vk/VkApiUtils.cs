@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
@@ -90,9 +91,10 @@ namespace VOffline.Services.Vk
         
     }
 
-    public class UserAgentProvider
+    public class ConstantsProvider
     {
-        public string UserAgent => UserAgentValue;
-        private const string UserAgentValue = "KateMobileAndroid/51.2 lite-443 (Android 4.4.2; SDK 19; x86; unknown Android SDK built for x86; en)";
+        public readonly string UserAgent = "KateMobileAndroid/51.2 lite-443 (Android 4.4.2; SDK 19; x86; unknown Android SDK built for x86; en)";
+        public readonly int DownloadQueueLimit = 5;
+        //public readonly int DownloadRetryLimit = 3;
     }
 }
