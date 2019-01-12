@@ -1,6 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using log4net;
 
 namespace VOffline.Services.Storage
 {
@@ -14,7 +17,7 @@ namespace VOffline.Services.Storage
             return dir;
         }
 
-        public DirectoryInfo CreateSubdir(DirectoryInfo parent, string desiredName, bool resolveCollisions)
+        public DirectoryInfo CreateSubdir(DirectoryInfo parent, string desiredName, CreateMode mode)
         {
             if (!parent.Exists)
             {
@@ -24,20 +27,32 @@ namespace VOffline.Services.Storage
             var validName = MakeValidName(desiredName);
             lock (LockObject)
             {
-                var newDir = resolveCollisions
-                    ? GetUniqueDirectory(parent, validName)
-                    : new DirectoryInfo(Path.Combine(parent.FullName, validName));
-                if (newDir.Exists)
+                DirectoryInfo directory;
+                switch (mode)
                 {
-                    throw new InvalidOperationException($"Dir already exists: {newDir.FullName}");
+                    case CreateMode.AutoRenameCollisions:
+                        directory = GetUniqueDirectory(parent, validName);
+                        break;
+                    case CreateMode.ThrowIfExists:
+                        directory = new DirectoryInfo(Path.Combine(parent.FullName, validName));
+                        if (directory.Exists)
+                        {
+                            throw new InvalidOperationException($"Dir already exists: {directory.FullName}");
+                        }
+                        break;
+                    case CreateMode.MergeWithExisting:
+                        directory = new DirectoryInfo(Path.Combine(parent.FullName, validName));
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
                 }
-                newDir.Create();
-                newDir.Refresh();
-                return newDir;
+                directory.Create();
+                directory.Refresh();
+                return directory;
             }
         }
 
-        public FileInfo CreateUniqueFile(DirectoryInfo parent, string desiredName)
+        public FileInfo CreateFile(DirectoryInfo parent, string desiredName, CreateMode mode)
         {
             if (!parent.Exists)
             {
@@ -47,15 +62,119 @@ namespace VOffline.Services.Storage
             var validName = MakeValidName(desiredName);
             lock (LockObject)
             {
-                var newFile = GetUniqueFile(parent, validName);
-                if (newFile.Exists)
+                FileInfo file;
+                switch (mode)
                 {
-                    throw new InvalidOperationException($"File already exists: {newFile.FullName}");
+                    case CreateMode.AutoRenameCollisions:
+                        file = GetUniqueFile(parent, validName);
+                        break;
+                    case CreateMode.ThrowIfExists:
+                        file = new FileInfo(Path.Combine(parent.FullName, validName));
+                        if (file.Exists)
+                        {
+                            throw new InvalidOperationException($"File already exists: {file.FullName}");
+                        }
+                        break;
+                    case CreateMode.MergeWithExisting:
+                        file = new FileInfo(Path.Combine(parent.FullName, validName));
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
                 }
-                newFile.Create().Close();
-                newFile.Refresh();
-                return newFile;
+                file.Create().Close();
+                file.Refresh();
+                return file;
             }
+        }
+
+
+
+        public async Task WriteFileWithCompletionMark(DirectoryInfo parent, string desiredName, Func<Task<string>> contentTaskFunc, CancellationToken token, ILog log)
+        {
+            var validName = MakeValidName(desiredName);
+            var completedName = $".{validName}.done.voffline";
+            var file = new FileInfo(Path.Combine(parent.FullName, validName));
+            var completedFile = new FileInfo(Path.Combine(parent.FullName, completedName));
+            if (completedFile.Exists)
+            {
+                log.Debug($"Skipping [{file.FullName}] because marked as competed");
+                return;
+            }
+
+            var content = await contentTaskFunc();
+            if (string.IsNullOrEmpty(content))
+            {
+                log.Warn($"Content for [{file.FullName}] is empty");
+            }
+            else
+            {
+                await File.WriteAllTextAsync(file.FullName, content, token);
+                log.Info($"Saved [{desiredName}] as [{file.FullName}] with [{content.Length}] chars");
+            }
+            await File.WriteAllTextAsync(completedFile.FullName, $"{DateTime.Now:O}", token);
+            completedFile.Attributes |= FileAttributes.Hidden;
+        }
+
+        public async Task WriteFileWithCompletionMark(DirectoryInfo parent, string desiredName, Func<Task<byte[]>> contentTaskFunc, CancellationToken token, ILog log)
+        {
+            var validName = MakeValidName(desiredName);
+            var completedName = $".{validName}.done.voffline";
+            var file = new FileInfo(Path.Combine(parent.FullName, validName));
+            var completedFile = new FileInfo(Path.Combine(parent.FullName, completedName));
+            if (completedFile.Exists)
+            {
+                log.Debug($"Skipping [{file.FullName}] because marked as competed");
+                return;
+            }
+
+            var content = await contentTaskFunc();
+            if (content == null || content.Length == 0)
+            {
+                log.Warn($"Content for [{file.FullName}] is empty");
+            }
+            else
+            {
+                await File.WriteAllBytesAsync(file.FullName, content, token);
+                log.Info($"Saved [{desiredName}] as [{file.FullName}] with [{content.Length}] bytes");
+            }
+            await File.WriteAllTextAsync(completedFile.FullName, $"{DateTime.Now:O}", token);
+            completedFile.Attributes |= FileAttributes.Hidden;
+        }
+
+        public int Wipe(DirectoryInfo dir)
+        {
+            lock (LockObject)
+            {
+                var count = 0;
+                foreach (var f in dir.GetFiles())
+                {
+                    f.Delete();
+                    count++;
+                }
+                foreach (var d in dir.GetDirectories())
+                {
+                    d.Delete(true);
+                    count++;
+                }
+
+                return count;
+            }
+        }
+
+        public void MarkAsCompleted(DirectoryInfo dir)
+        {
+            lock (LockObject)
+            {
+                var file = CreateFile(dir, CompletedFilename, CreateMode.ThrowIfExists);
+                File.WriteAllText(file.FullName, $"{DateTime.Now:O}");
+                file.Attributes |= FileAttributes.Hidden;
+            }
+        }
+
+        public bool IsCompleted(DirectoryInfo dir)
+        {
+            var file = new FileInfo(Path.Combine(dir.FullName, CompletedFilename));
+            return file.Exists;
         }
 
         /// <summary>
@@ -112,5 +231,14 @@ namespace VOffline.Services.Storage
                 .ToArray();
 
         private static readonly object LockObject = new object();
+
+        private static readonly string CompletedFilename = MakeValidName(".done.voffline");
+    }
+
+    public enum CreateMode
+    {
+        AutoRenameCollisions,
+        ThrowIfExists,
+        MergeWithExisting
     }
 }

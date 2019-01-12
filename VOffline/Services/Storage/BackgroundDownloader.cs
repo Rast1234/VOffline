@@ -18,14 +18,10 @@ namespace VOffline.Services.Storage
         private readonly DownloadQueueProvider queueProvider;
         private readonly FilesystemTools filesystemTools;
 
-        private readonly VkApi vkApi;
-        //private readonly int retryLimit;
-
-        public BackgroundDownloader(DownloadQueueProvider queueProvider, FilesystemTools filesystemTools, VkApi vkApi)
+        public BackgroundDownloader(DownloadQueueProvider queueProvider, FilesystemTools filesystemTools)
         {
             this.queueProvider = queueProvider;
             this.filesystemTools = filesystemTools;
-            this.vkApi = vkApi;
         }
 
         public async Task<List<IDownload>> Process(CancellationToken token, ILog log)
@@ -40,11 +36,8 @@ namespace VOffline.Services.Storage
                 // TODO: add second queue, semaphore and support for retries
                 try
                 {
-                    var content = await item.GetContent(vkApi, token);
-                    var file = filesystemTools.CreateUniqueFile(item.Location, item.DesiredName);
-                    await File.WriteAllBytesAsync(file.FullName, content, token);
+                    await filesystemTools.WriteFileWithCompletionMark(item.Location, item.DesiredName, async () => await item.GetContent(token), token, log);
                     success++;
-                    log.Info($"Saved [{item.DesiredName}] as [{file.FullName}] with [{content.Length}] bytes");
                 }
                 catch (OperationCanceledException)
                 {
@@ -54,7 +47,7 @@ namespace VOffline.Services.Storage
                 {
                     item.AddError(e);
                     await errors.EnqueueAsync(item, token);
-                    log.Warn($"Error downloading {item.DesiredName}", e);
+                    log.Warn($"Error downloading {item}", e);
                 }
             }
 

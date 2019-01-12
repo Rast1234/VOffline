@@ -17,7 +17,7 @@ namespace VOffline.Models.Storage
         int RetryCount { get; }
         IReadOnlyList<Exception> Errors { get; }
         void AddError(Exception e);
-        Task<byte[]> GetContent(VkApi vkApi, CancellationToken token);
+        Task<byte[]> GetContent(CancellationToken token);
     }
 
     public class Download : IDownload
@@ -45,46 +45,17 @@ namespace VOffline.Models.Storage
             errors.Add(e);
         }
 
-        public async Task<byte[]> GetContent(VkApi vkApi, CancellationToken token)
+        public async Task<byte[]> GetContent(CancellationToken token)
         {
             var client = new RestClient($"{Uri.Scheme}://{Uri.Authority}");
             var response = await client.ExecuteGetTaskAsync(new RestRequest(Uri.PathAndQuery), token);
             response.ThrowIfSomethingWrong();
             return response.RawBytes;
         }
-    }
 
-    public class LyricsVkDownload : IDownload
-    {
-        private readonly long lyricsId;
-        private readonly List<Exception> errors;
-
-        public LyricsVkDownload(long lyricsId, DirectoryInfo location, string desiredName)
+        public override string ToString()
         {
-            this.lyricsId = lyricsId;
-            errors = new List<Exception>();
-            Location = location ?? throw new ArgumentNullException(nameof(location));
-            DesiredName = desiredName ?? throw new ArgumentNullException(nameof(desiredName));
-        }
-
-        public DirectoryInfo Location { get; }
-        public string DesiredName { get; }
-
-        public int RetryCount => errors.Count;
-
-        public IReadOnlyList<Exception> Errors => errors;
-
-        public void AddError(Exception e)
-        {
-            errors.Add(e);
-        }
-
-        public async Task<byte[]> GetContent(VkApi vkApi, CancellationToken token)
-        {
-            var lyrics = await vkApi.Audio.GetLyricsAsync(lyricsId);
-            return !string.IsNullOrWhiteSpace(lyrics?.Text)
-                ? new byte[] { }  // TODO: fix this to provide a no-value without exceptions
-                : Encoding.UTF8.GetBytes(lyrics.Text);
+            return $"[{Location.FullName}][{DesiredName}] ({Uri})";
         }
     }
 }

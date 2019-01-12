@@ -27,9 +27,10 @@ namespace VOffline.Services
         private readonly VkApiUtils vkApiUtils;
         private readonly BackgroundDownloader downloader;
         private readonly FilesystemTools filesystemTools;
-        private readonly AudioHandler audioHandler;
+        private readonly DownloadQueueProvider queueProvider;
+        private readonly AttachmentProcessor attachmentProcessor;
 
-        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, AudioHandler audioHandler, IOptionsSnapshot<Settings> settings)
+        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, DownloadQueueProvider queueProvider, AttachmentProcessor attachmentProcessor, IOptionsSnapshot<Settings> settings)
         {
             this.settings = settings.Value;
             this.tokenMagic = tokenMagic;
@@ -37,7 +38,8 @@ namespace VOffline.Services
             this.vkApiUtils = vkApiUtils;
             this.downloader = downloader;
             this.filesystemTools = filesystemTools;
-            this.audioHandler = audioHandler;
+            this.queueProvider = queueProvider;
+            this.attachmentProcessor = attachmentProcessor;
         }
 
         public async Task Run(CancellationToken token, ILog log)
@@ -58,7 +60,7 @@ namespace VOffline.Services
                 .Select(async x => await vkApiUtils.ResolveId(x))
                 .Select(x => x.Result)
                 .Distinct()
-                .ToImmutableHashSet();
+                .ToImmutableList();
             log.Debug($"Processing {JsonConvert.SerializeObject(modes)} for {JsonConvert.SerializeObject(ids)}");
             var downloaderTask = downloader.Process(token, log);
 
@@ -67,15 +69,14 @@ namespace VOffline.Services
             {
                 
                 var name = await vkApiUtils.GetName(id);
-                var workDir = filesystemTools.CreateSubdir(rootDir, name, false);
+                var workDir = filesystemTools.CreateSubdir(rootDir, name, CreateMode.MergeWithExisting);
                 log.Info($"id [{id}], name [{name}], path [{workDir.FullName}]");
                 foreach (var mode in modes)
                 {
-                    var modeDir = filesystemTools.CreateSubdir(workDir, mode.ToString(), false);
-                    await ProcessTarget(id, modeDir, mode, token, log);
+                    await ProcessTarget(id, workDir, mode, token, log);
                 }
             }
-
+            queueProvider.Pending.CompleteAdding();
             var downloadErrors = await downloaderTask;
             foreach (var downloadError in downloadErrors)
             {
@@ -85,12 +86,14 @@ namespace VOffline.Services
 
         private async Task ProcessTarget(long id, DirectoryInfo dir, Mode mode, CancellationToken token, ILog log)
         {
+            // TODO: save raw requests/responses for future use?
             switch (mode)
             {
                 case Mode.Wall:
+                    await new WallHandler(id, vkApi, filesystemTools, attachmentProcessor).Process(dir, token, log);
                     break;
                 case Mode.Audio:
-                    await audioHandler.ProcessAudio(id, dir, token, log);
+                    await new AudioHandler(id, vkApi, filesystemTools, attachmentProcessor).Process(dir, token, log);
                     break;
                 case Mode.All:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, "This mode should have been replaced before processing");

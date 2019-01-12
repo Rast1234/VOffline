@@ -12,19 +12,20 @@ namespace VOffline.Models
         public List<Mode> Modes { get; set; }
         public string OutputPath { get; set; }
 
-        public ImmutableHashSet<Mode> GetWorkingModes()
+        public IReadOnlyList<Mode> GetWorkingModes()
         {
-            var unique = Modes.ToImmutableHashSet();
-
+            var unique = Modes.Distinct().ToList();
             if (!unique.Contains(Mode.All))
             {
-                return unique; 
+                return unique
+                    .ToList(); 
             }
 
-            var goodEnumValues = Enum.GetValues(typeof(Mode))
+            return Enum.GetValues(typeof(Mode))
                 .Cast<Mode>()
-                .Except(Enumerable.Repeat(Mode.All, 1));
-            return goodEnumValues.ToImmutableHashSet();
+                .Except(Enumerable.Repeat(Mode.All, 1))
+                .OrderBy(x => x.ToString())
+                .ToList();
 
         }
     }

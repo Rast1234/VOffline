@@ -47,7 +47,7 @@ namespace VOffline.Services.Vk
             var digitalMatch = DigitalPattern.Match(target);
             if (digitalMatch.Success)
             {
-                return long.Parse(digitalMatch.Groups[2].Value);
+                return long.Parse(digitalMatch.Groups[1].Value);
             }
 
             // any screen name
@@ -94,7 +94,9 @@ namespace VOffline.Services.Vk
     public class ConstantsProvider
     {
         public readonly string UserAgent = "KateMobileAndroid/51.2 lite-443 (Android 4.4.2; SDK 19; x86; unknown Android SDK built for x86; en)";
-        public readonly int DownloadQueueLimit = 5;
-        //public readonly int DownloadRetryLimit = 3;
+        public readonly int RequestRetryCount = 3;
+        public readonly TimeSpan RequestRetryDelay = TimeSpan.FromSeconds(3);
+        public readonly int DownloadQueueLimit = 100;
+        
     }
 }

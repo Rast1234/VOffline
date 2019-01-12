@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using VkNet.Abstractions.Core;
 using VkNet.Utils;
 
-namespace VOffline.Services.Vk
+namespace VOffline.Services.VkNetHacks
 {
     public class CancellableConstraint : IAwaitableConstraint
     {
