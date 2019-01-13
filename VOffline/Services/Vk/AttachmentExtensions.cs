@@ -10,9 +10,10 @@ using Newtonsoft.Json;
 using VkNet;
 using VkNet.Model;
 using VkNet.Model.Attachments;
+using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 
-namespace VOffline.Models.Storage
+namespace VOffline.Services.Vk
 {
     public static class AttachmentExtensions
     {
@@ -168,7 +169,6 @@ namespace VOffline.Models.Storage
         public static string GetName(this Audio audio) => string.Join(" - ", new[] { audio.Artist, audio.Title }.Where(x => !string.IsNullOrEmpty(x)));
 
         public static string GetName(this Poll poll) => $"poll {poll.Id}";
-
 
         public static async Task SaveText(this Photo photo, int i, FilesystemTools filesystemTools, DirectoryInfo dir, CancellationToken token, ILog log)
         {

@@ -1,25 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RestSharp;
-using VkNet;
+using VOffline.Services;
 using VOffline.Services.Handlers;
 
 namespace VOffline.Models.Storage
 {
-    public interface IDownload
-    {
-        DirectoryInfo Location { get; }
-        string DesiredName { get; }
-        int RetryCount { get; }
-        IReadOnlyList<Exception> Errors { get; }
-        void AddError(Exception e);
-        Task<byte[]> GetContent(CancellationToken token);
-    }
-
     public class Download : IDownload
     {
         private readonly List<Exception> errors;

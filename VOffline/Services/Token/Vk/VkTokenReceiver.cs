@@ -1,8 +1,8 @@
 ﻿using log4net;
 using VOffline.Models.Google;
-using VOffline.Services.Google;
+using VOffline.Services.Token.Google;
 
-namespace VOffline.Services.Vk
+namespace VOffline.Services.Token.Vk
 {
     public class VkTokenReceiver
     {

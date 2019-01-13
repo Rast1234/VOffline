@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
@@ -10,11 +9,10 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using VkNet;
 using VkNet.Model;
-using VkNet.Model.RequestParams;
 using VOffline.Models;
-using VOffline.Models.Storage;
 using VOffline.Services.Handlers;
 using VOffline.Services.Storage;
+using VOffline.Services.Token;
 using VOffline.Services.Vk;
 
 namespace VOffline.Services
@@ -58,26 +56,32 @@ namespace VOffline.Services
 
 
             var modes = settings.GetWorkingModes();
-            var ids = settings.Targets
-                .Select(async x => await vkApiUtils.ResolveId(x))
-                .Select(x => x.Result)
+            var idTasks = settings.Targets
+                .Select(async x =>
+                {
+                    var id = await vkApiUtils.ResolveId(x);
+                    return (name: x, id: id);
+                });
+            var allIds = await Task.WhenAll(idTasks);
+            var identifiers = allIds
                 .Distinct()
                 .ToImmutableList();
-            log.Debug($"Processing {JsonConvert.SerializeObject(modes)} for {JsonConvert.SerializeObject(ids)}");
+            log.Debug($"Processing {JsonConvert.SerializeObject(modes)} for {string.Join(", ", identifiers.Select(x => $"[{x.name} {x.id}]"))}");
             var downloaderTask = downloader.Process(token, log);
 
             var rootDir = filesystemTools.MkDir(settings.OutputPath);
-            foreach (var id in ids)
+            foreach (var identifier in identifiers)
             {
-                
-                var name = await vkApiUtils.GetName(id);
+
+                var name = await vkApiUtils.GetName(identifier.id);
                 var workDir = filesystemTools.CreateSubdir(rootDir, name, CreateMode.MergeWithExisting);
-                log.Info($"id [{id}], name [{name}], path [{workDir.FullName}]");
+                log.Info($"id [{identifier.id}], name [{name}], path [{workDir.FullName}]");
                 foreach (var mode in modes)
                 {
-                    await ProcessTarget(id, workDir, mode, token, log);
+                    await ProcessTarget(identifier.id, workDir, mode, token, log);
                 }
             }
+
             queueProvider.Pending.CompleteAdding();
             var downloadErrors = await downloaderTask;
             foreach (var downloadError in downloadErrors)

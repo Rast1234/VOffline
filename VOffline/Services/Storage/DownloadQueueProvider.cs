@@ -2,7 +2,9 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
+using VOffline.Models;
 using VOffline.Models.Storage;
 using VOffline.Services.Vk;
 
@@ -10,9 +12,9 @@ namespace VOffline.Services.Storage
 {
     public class DownloadQueueProvider
     {
-        public DownloadQueueProvider(ConstantsProvider constantsProvider)
+        public DownloadQueueProvider(IOptionsSnapshot<Settings> settings)
         {
-            Pending = new AsyncProducerConsumerQueue<IDownload>(constantsProvider.DownloadQueueLimit);
+            Pending = new AsyncProducerConsumerQueue<IDownload>(settings.Value.DownloadQueueLimit);
         }
 
         public async Task EnqueueAll(IEnumerable<IDownload> items, CancellationToken token)

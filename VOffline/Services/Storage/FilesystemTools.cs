@@ -87,8 +87,6 @@ namespace VOffline.Services.Storage
             }
         }
 
-
-
         public async Task WriteFileWithCompletionMark(DirectoryInfo parent, string desiredName, Func<Task<string>> contentTaskFunc, CancellationToken token, ILog log)
         {
             var validName = MakeValidName(desiredName);
@@ -233,12 +231,5 @@ namespace VOffline.Services.Storage
         private static readonly object LockObject = new object();
 
         private static readonly string CompletedFilename = MakeValidName(".done.voffline");
-    }
-
-    public enum CreateMode
-    {
-        AutoRenameCollisions,
-        ThrowIfExists,
-        MergeWithExisting
     }
 }

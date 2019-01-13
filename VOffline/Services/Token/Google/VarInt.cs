@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace VOffline.Services.Google
+namespace VOffline.Services.Token.Google
 {
     public static class VarInt
     {

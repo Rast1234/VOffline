@@ -4,8 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using VkNet;
-using VkNet.Model;
-using VkNet.Model.RequestParams;
 using VOffline.Services.Storage;
 using VOffline.Services.Vk;
 using VOffline.Services.VkNetHacks;

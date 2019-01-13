@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
@@ -11,7 +9,7 @@ using VkNet.Model.Attachments;
 using VkNet.Model.RequestParams;
 using VOffline.Models.Storage;
 
-namespace VOffline.Services.VkNetHacks
+namespace VOffline.Services.Vk
 {
     public static class VkNetExtensions
     {
@@ -187,7 +185,7 @@ namespace VOffline.Services.VkNetHacks
                 OwnerId = playlist.OwnerId,
             });
             log.Debug($"Expanded playlist {playlist.Title}: {audios.TotalCount} audios");
-            Utils.ThrowIfCountMismatch(audios.TotalCount, audios.Count);
+            VkApiUtils.ThrowIfCountMismatch(audios.TotalCount, audios.Count);
             return new PlaylistWithAudio(playlist, audios);
         }
 
@@ -199,7 +197,7 @@ namespace VOffline.Services.VkNetHacks
                 OwnerId = id
             });
             log.Debug($"Audios [{id}]: {audios.Count}/{audios.TotalCount}");
-            Utils.ThrowIfCountMismatch(audios.TotalCount, audios.Count);
+            VkApiUtils.ThrowIfCountMismatch(audios.TotalCount, audios.Count);
             return audios;
         }
     }

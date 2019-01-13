@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using VOffline.Models.Google;
 
-namespace VOffline.Services.Google
+namespace VOffline.Services.Token.Google
 {
     public class ProtobufParser
     {

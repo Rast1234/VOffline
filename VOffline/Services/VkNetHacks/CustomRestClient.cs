@@ -6,9 +6,11 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using VkNet.Abstractions.Utils;
 using VkNet.Utils;
+using VOffline.Models;
 using VOffline.Services.Vk;
 
 namespace VOffline.Services.VkNetHacks
@@ -25,14 +27,14 @@ namespace VOffline.Services.VkNetHacks
         private readonly int retryMaxCount;
         private readonly TimeSpan retryDelay;
 
-        public CustomRestClient(ILogger<RestClient> logger, IWebProxy proxy, ConstantsProvider constantsProvider, CancellationTokenSource cancellationTokenSource)
+        public CustomRestClient(ILogger<RestClient> logger, IWebProxy proxy, IOptionsSnapshot<Settings> settings, CancellationTokenSource cancellationTokenSource)
         {
             this.logger = logger;
             this.token = cancellationTokenSource.Token;
             Proxy = proxy;
-            userAgent = constantsProvider.UserAgent;
-            retryMaxCount = constantsProvider.RequestRetryCount;
-            retryDelay = constantsProvider.RequestRetryDelay;
+            userAgent = settings.Value.UserAgent;
+            retryMaxCount = settings.Value.RequestRetryCount;
+            retryDelay = settings.Value.RequestRetryDelay;
         }
 
         public IWebProxy Proxy { get; set; }

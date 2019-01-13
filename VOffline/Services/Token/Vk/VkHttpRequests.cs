@@ -3,19 +3,20 @@ using log4net;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using RestSharp;
+using VOffline.Models;
 using VOffline.Models.Vk;
 using RestClient = RestSharp.RestClient;
 
-namespace VOffline.Services.Vk
+namespace VOffline.Services.Token.Vk
 {
     public class VkHttpRequests
     {
         private readonly string userAgent;
         private VkCredentials VkCredentials { get; }
 
-        public VkHttpRequests(IOptionsSnapshot<VkCredentials> vkCredentials, ConstantsProvider constantsProvider)
+        public VkHttpRequests(IOptionsSnapshot<VkCredentials> vkCredentials, IOptionsSnapshot<Settings> settings)
         {
-            userAgent = constantsProvider.UserAgent;
+            userAgent = settings.Value.UserAgent;
             VkCredentials = vkCredentials.Value;
         }
 

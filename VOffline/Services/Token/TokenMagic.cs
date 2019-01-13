@@ -1,9 +1,9 @@
 ﻿using log4net;
 using VOffline.Models.Vk;
-using VOffline.Services.Google;
-using VOffline.Services.Vk;
+using VOffline.Services.Token.Google;
+using VOffline.Services.Token.Vk;
 
-namespace VOffline.Services
+namespace VOffline.Services.Token
 {
     public class TokenMagic
     {

@@ -1,7 +1,7 @@
 ﻿using log4net;
 using VOffline.Models.Google;
 
-namespace VOffline.Services.Google
+namespace VOffline.Services.Token.Google
 {
     public class AndroidAuth
     {

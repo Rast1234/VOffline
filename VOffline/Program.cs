@@ -8,7 +8,6 @@ using log4net;
 using log4net.Config;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileSystemGlobbing.Internal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -16,16 +15,15 @@ using Newtonsoft.Json.Converters;
 using VkNet;
 using VkNet.Abstractions.Core;
 using VkNet.Abstractions.Utils;
-using VkNet.Infrastructure;
-using VkNet.Model;
-using VkNet.Utils;
 using VOffline.Models;
 using VOffline.Models.Google;
 using VOffline.Models.Vk;
 using VOffline.Services;
-using VOffline.Services.Google;
 using VOffline.Services.Handlers;
 using VOffline.Services.Storage;
+using VOffline.Services.Token;
+using VOffline.Services.Token.Google;
+using VOffline.Services.Token.Vk;
 using VOffline.Services.Vk;
 using VOffline.Services.VkNetHacks;
 
@@ -37,7 +35,7 @@ namespace VOffline
         public static async Task<int> Main(string[] args)
         {
             var log = ConfigureLog4Net();
-            
+
             try
             {
                 var cts = CreateCancellationTokenSource();
@@ -47,10 +45,12 @@ namespace VOffline
 
                 var configuration = new ConfigurationBuilder()
                     .AddJsonFile("appsettings.json")
+                    .AddUserSecrets<Settings>()
+                    .AddUserSecrets<VkCredentials>()
                     .Build();
                 serviceCollection.Configure<Settings>(configuration.GetSection("Settings"));
                 serviceCollection.Configure<VkCredentials>(configuration.GetSection("VkCredentials"));
-                
+
                 serviceCollection.AddSingleton<FileCache<VkToken>>();
                 serviceCollection.AddSingleton<FileCache<GoogleCredentials>>();
                 serviceCollection.AddSingleton<FileCache<GoogleCheckIn>>();
@@ -58,14 +58,15 @@ namespace VOffline
                 serviceCollection.AddSingleton<GoogleHttpRequests>();
                 serviceCollection.AddSingleton<VkHttpRequests>();
                 serviceCollection.AddSingleton<VkApiUtils>();
-                serviceCollection.AddSingleton<ConstantsProvider>();
-                serviceCollection.AddSingleton<VkApi>(_ => CreateVkApi(cts, log));
+                serviceCollection.AddSingleton<VkApi>(s => CreateVkApi(s, cts, log));
                 serviceCollection.AddSingleton<FilesystemTools>();
                 serviceCollection.AddSingleton<DownloadQueueProvider>();
                 serviceCollection.AddSingleton<BackgroundDownloader>();
 
                 serviceCollection.AddSingleton<WallHandler>();
                 serviceCollection.AddSingleton<PostHandler>();
+                serviceCollection.AddSingleton<CommentsHandler>();
+                serviceCollection.AddSingleton<CommentHandler>();
                 serviceCollection.AddSingleton<AudioHandler>();
                 serviceCollection.AddSingleton<PlaylistHandler>();
                 serviceCollection.AddSingleton<AttachmentProcessor>();
@@ -79,8 +80,12 @@ namespace VOffline
 
                 var services = serviceCollection.BuildServiceProvider();
                 await services.GetRequiredService<Logic>().Run(cts.Token, log);
-                
                 return 0;
+            }
+            catch (TaskCanceledException e)
+            {
+                log.Warn($"Canceled by user");
+                return -2;
             }
             catch (Exception e)
             {
@@ -89,11 +94,11 @@ namespace VOffline
             }
         }
 
-        private static VkApi CreateVkApi(CancellationTokenSource cancellationTokenSource, ILog log)
+        private static VkApi CreateVkApi(IServiceProvider services, CancellationTokenSource cancellationTokenSource, ILog log)
         {
             // VkNet uses its own DI for internal services
             var sc = new ServiceCollection();
-            sc.AddSingleton<ConstantsProvider>();
+            
             sc.AddSingleton<CancellationTokenSource>(cancellationTokenSource);
             sc.AddSingleton<IRestClient, CustomRestClient>();
             sc.AddSingleton<IAwaitableConstraint, CancellableConstraint>(_ => new CancellableConstraint(3, TimeSpan.FromSeconds(1), cancellationTokenSource.Token));
@@ -107,6 +112,9 @@ namespace VOffline
                 //builder.Services.AddSingleton<ILoggerProvider>((ILoggerProvider)new Log4NetProvider(options));
                 builder.AddProvider(new SimpleLoggerProvider(log));
             });
+
+            sc.AddTransient<Settings>(_ => services.GetRequiredService<IOptionsSnapshot<Settings>>().Value);
+
             var vkApi = new VkApi(sc);
             vkApi.VkApiVersion.SetVersion(5,90);  // hack for linear comments without threads
             return vkApi;

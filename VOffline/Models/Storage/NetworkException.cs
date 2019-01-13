@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace VOffline.Services.Handlers
+namespace VOffline.Services
 {
     public class NetworkException : ApplicationException
     {
