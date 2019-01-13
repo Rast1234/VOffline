@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
+using Newtonsoft.Json;
 using VOffline.Services.Storage;
 
 namespace VOffline.Services.Handlers
@@ -51,7 +52,7 @@ namespace VOffline.Services.Handlers
             }
             catch (Exception e)
             {
-                log.Error($"Failed {GetType().FullName} while working in [{workDir?.FullName}]", e);
+                log.Error($"Failed {GetType().FullName} while working in [{workDir?.FullName}]. Data is:\n{JsonConvert.SerializeObject(data)}", e);
             }
         }
 

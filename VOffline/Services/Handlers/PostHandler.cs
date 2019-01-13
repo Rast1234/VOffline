@@ -42,6 +42,12 @@ namespace VOffline.Services.Handlers
             await Task.WhenAll(allRepostTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(Post post, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, $"{post.Date.Value:s} {post.Id}", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(Post post, DirectoryInfo parentDir)
+        {
+            var dateMaybe = post.Date != null
+                ? $"{post.Date.Value:s}"
+                : "no_date";
+            return filesystemTools.CreateSubdir(parentDir, $"{dateMaybe} {post.Id}", CreateMode.MergeWithExisting);
+        }
     }
 }
