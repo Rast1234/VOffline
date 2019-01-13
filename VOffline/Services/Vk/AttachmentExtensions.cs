@@ -158,7 +158,7 @@ namespace VOffline.Services.Vk
             var sb = new StringBuilder();
             sb.AppendLine($"{comment.Date} {comment.FromId}");
             sb.AppendLine(comment.Text);
-            sb.Append($"{comment.Likes.Count} likes, {comment.Attachments.Count} attachments, id {comment.Id}");
+            sb.Append($"likes={comment.Likes?.Count}, attachments={comment.Attachments?.Count}, id={comment.Id}");
             if (comment.ReplyToCommentId != null || comment.ReplyToUserId != null)
             {
                 sb.Append($", reply to user {comment.ReplyToUserId} comment {comment.ReplyToCommentId}");

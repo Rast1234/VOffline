@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
@@ -52,20 +53,25 @@ namespace VOffline.Services
                     await downloadQueueProvider.EnqueueAll(link.ToDownloads(number, filesystemTools, workDir, log), token);
                     await link.SaveHumanReadableText(number, filesystemTools, workDir, token, log);
                     break;
+                
+                case VkNet.Model.Attachments.Video video:  // vlc же как-то получает MP4 поток. а что делать с видосами на хостингах?
 
-                case VkNet.Model.Attachments.AudioPlaylist audioPlaylist:
-                case VkNet.Model.Attachments.Album album:
+                case VkNet.Model.Attachments.Note note:  // note и page похожи
+                case VkNet.Model.Attachments.Page page:
+
+                case VkNet.Model.Attachments.Album album:  // это к фотографиям
+
+                case VkNet.Model.Attachments.AudioPlaylist audioPlaylist:  // это к аудиозаписям. так вообще бывает?
+                
+                // остальное похоже на хлам
                 case VkNet.Model.Attachments.ApplicationContent applicationContent:
                 case VkNet.Model.Attachments.AudioMessage audioMessage:
                 case VkNet.Model.Attachments.Gift gift:
                 case VkNet.Model.Attachments.Graffiti graffiti:
                 case VkNet.Model.Attachments.MarketAlbum marketAlbum:
-                case VkNet.Model.Attachments.Note note:
-                case VkNet.Model.Attachments.Page page:
                 case VkNet.Model.Attachments.PrettyCards prettyCards:
                 case VkNet.Model.Attachments.Sticker sticker:
                 case VkNet.Model.Attachments.StringLink stringLink:
-                case VkNet.Model.Attachments.Video video:
                 case VkNet.Model.Attachments.WallReply wallReply:
                 default:
                     log.Warn($"Not yet supported: attachment [{mediaAttachment.GetType().FullName}] {JsonConvert.SerializeObject(mediaAttachment)}");

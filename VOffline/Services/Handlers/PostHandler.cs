@@ -30,7 +30,7 @@ namespace VOffline.Services.Handlers
             var attachmentTasks = post.Attachments.Select((a, i) => attachmentProcessor.ProcessAttachment(a, i, workDir, token, log));
             await Task.WhenAll(attachmentTasks);
 
-            if (post.Comments.Count > 0)
+            if (post.Comments?.Count > 0)
             {
                 await commentsHandler.Process(post, workDir, token, log);
             }
