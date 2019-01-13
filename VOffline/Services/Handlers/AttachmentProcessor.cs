@@ -51,6 +51,7 @@ namespace VOffline.Services.Handlers
                     break;
                 case VkNet.Model.Attachments.Link link:
                     await downloadQueueProvider.EnqueueAll(link.ToDownloads(number, filesystemTools, workDir, log), token);
+                    await link.SaveHumanReadableText(number, filesystemTools, workDir, token, log);
                     break;
 
                 case VkNet.Model.Attachments.AudioPlaylist audioPlaylist:

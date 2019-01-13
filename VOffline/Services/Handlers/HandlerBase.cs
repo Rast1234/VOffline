@@ -7,7 +7,7 @@ using VOffline.Services.Storage;
 
 namespace VOffline.Services.Handlers
 {
-    public abstract class HandlerBase
+    public abstract class HandlerBase<T>
     {
         protected readonly FilesystemTools filesystemTools;
 
@@ -16,13 +16,13 @@ namespace VOffline.Services.Handlers
             this.filesystemTools = filesystemTools;
         }
 
-        public async Task Process(DirectoryInfo parentDir, CancellationToken token, ILog log)
+        public async Task Process(T data, DirectoryInfo parentDir, CancellationToken token, ILog log)
         {
             DirectoryInfo workDir = null;
             try
             {
                 token.ThrowIfCancellationRequested();  // this helps stop synchronous stuff inside long nested loops
-                workDir = GetWorkingDirectory(parentDir);
+                workDir = GetWorkingDirectory(data, parentDir);
                 if (IsCompletable)
                 {
                     if (filesystemTools.IsCompleted(workDir))
@@ -33,7 +33,7 @@ namespace VOffline.Services.Handlers
                 }
                 
 
-                await ProcessInternal(workDir, token, log);
+                await ProcessInternal(data, workDir, token, log);
                 if (IsCompletable)
                 {
                     filesystemTools.MarkAsCompleted(workDir);
@@ -55,9 +55,9 @@ namespace VOffline.Services.Handlers
             }
         }
 
-        public abstract Task ProcessInternal(DirectoryInfo workDir, CancellationToken token, ILog log);
+        public abstract Task ProcessInternal(T data, DirectoryInfo workDir, CancellationToken token, ILog log);
 
-        public abstract DirectoryInfo GetWorkingDirectory(DirectoryInfo parentDir);
+        public abstract DirectoryInfo GetWorkingDirectory(T data, DirectoryInfo parentDir);
 
         protected virtual bool IsCompletable { get; } = false;
     }

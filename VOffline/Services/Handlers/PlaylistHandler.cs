@@ -9,18 +9,16 @@ using VOffline.Services.Storage;
 
 namespace VOffline.Services.Handlers
 {
-    public class PlaylistHandler : HandlerBase
+    public class PlaylistHandler : HandlerBase<PlaylistWithAudio>
     {
-        private readonly PlaylistWithAudio playlistWithAudio;
         private readonly AttachmentProcessor attachmentProcessor;
 
-        public PlaylistHandler(PlaylistWithAudio playlistWithAudio, FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
+        public PlaylistHandler(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
         {
-            this.playlistWithAudio = playlistWithAudio;
             this.attachmentProcessor = attachmentProcessor;
         }
 
-        public override async Task ProcessInternal(DirectoryInfo workDir, CancellationToken token, ILog log)
+        public override async Task ProcessInternal(PlaylistWithAudio playlistWithAudio, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
             if (!string.IsNullOrWhiteSpace(playlistWithAudio.Playlist.Description))
             {
@@ -37,6 +35,6 @@ namespace VOffline.Services.Handlers
             await Task.WhenAll(attachmentTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, $"{playlistWithAudio.Playlist.Title}", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(PlaylistWithAudio playlistWithAudio, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, $"{playlistWithAudio.Playlist.Title}", CreateMode.MergeWithExisting);
     }
 }

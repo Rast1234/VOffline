@@ -28,9 +28,10 @@ namespace VOffline.Services
         private readonly BackgroundDownloader downloader;
         private readonly FilesystemTools filesystemTools;
         private readonly DownloadQueueProvider queueProvider;
-        private readonly AttachmentProcessor attachmentProcessor;
+        private readonly WallHandler wallHandler;
+        private readonly AudioHandler audioHandler;
 
-        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, DownloadQueueProvider queueProvider, AttachmentProcessor attachmentProcessor, IOptionsSnapshot<Settings> settings)
+        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, DownloadQueueProvider queueProvider, WallHandler wallHandler, AudioHandler audioHandler, IOptionsSnapshot<Settings> settings)
         {
             this.settings = settings.Value;
             this.tokenMagic = tokenMagic;
@@ -39,7 +40,8 @@ namespace VOffline.Services
             this.downloader = downloader;
             this.filesystemTools = filesystemTools;
             this.queueProvider = queueProvider;
-            this.attachmentProcessor = attachmentProcessor;
+            this.wallHandler = wallHandler;
+            this.audioHandler = audioHandler;
         }
 
         public async Task Run(CancellationToken token, ILog log)
@@ -90,10 +92,10 @@ namespace VOffline.Services
             switch (mode)
             {
                 case Mode.Wall:
-                    await new WallHandler(id, vkApi, filesystemTools, attachmentProcessor).Process(dir, token, log);
+                    await wallHandler.Process(id, dir, token, log);
                     break;
                 case Mode.Audio:
-                    await new AudioHandler(id, vkApi, filesystemTools, attachmentProcessor).Process(dir, token, log);
+                    await audioHandler.Process(id, dir, token, log);
                     break;
                 case Mode.All:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, "This mode should have been replaced before processing");

@@ -142,6 +142,29 @@ namespace VOffline.Models.Storage
             return sb.ToString();
         }
 
+        public static string Serialize(this Link link)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(link.Title);
+            sb.AppendLine(link.Caption);
+            sb.AppendLine(link.Description);
+            sb.AppendLine($"{link.Uri}");
+            return sb.ToString();
+        }
+
+        public static string Serialize(this Comment comment)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"{comment.Date} {comment.FromId}");
+            sb.AppendLine(comment.Text);
+            sb.Append($"{comment.Likes.Count} likes, {comment.Attachments.Count} attachments, id {comment.Id}");
+            if (comment.ReplyToCommentId != null || comment.ReplyToUserId != null)
+            {
+                sb.Append($", reply to user {comment.ReplyToUserId} comment {comment.ReplyToCommentId}");
+            }
+            return sb.ToString();
+        }
+
         public static string GetName(this Audio audio) => string.Join(" - ", new[] { audio.Artist, audio.Title }.Where(x => !string.IsNullOrEmpty(x)));
 
         public static string GetName(this Poll poll) => $"poll {poll.Id}";
@@ -173,6 +196,19 @@ namespace VOffline.Models.Storage
         {
             var textFile = filesystemTools.CreateFile(dir, $"{i} {poll.GetName()}.txt", CreateMode.MergeWithExisting);
             await File.WriteAllTextAsync(textFile.FullName, poll.Serialize(), token);
+        }
+
+        public static async Task SaveHumanReadableText(this Link link, int i, FilesystemTools filesystemTools, DirectoryInfo dir, CancellationToken token, ILog log)
+        {
+            var textFile = filesystemTools.CreateFile(dir, $"{i} {link.Title}.txt", CreateMode.MergeWithExisting);
+            await File.WriteAllTextAsync(textFile.FullName, link.Serialize(), token);
+        }
+
+        public static async Task SaveHumanReadableText(this IReadOnlyList<Comment> comments, FilesystemTools filesystemTools, DirectoryInfo dir, CancellationToken token, ILog log)
+        {
+            var data = string.Join("\n\n", comments.Select(c => c.Serialize()));
+            var textFile = filesystemTools.CreateFile(dir, $"comments.txt", CreateMode.MergeWithExisting);
+            await File.WriteAllTextAsync(textFile.FullName, data, token);
         }
     }
 }

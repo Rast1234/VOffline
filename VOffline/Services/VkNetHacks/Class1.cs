@@ -15,10 +15,7 @@ namespace VOffline.Services.VkNetHacks
 {
     public static class VkNetExtensions
     {
-        /// <summary>
-        /// Downloads whole wall with retries
-        /// </summary>
-        public static async Task<IReadOnlyList<Post>> GetAllAsync(this IWallCategory wall, long id, CancellationToken token, ILog log)
+        public static async Task<IReadOnlyList<Post>> GetAllPostsAsync(this IWallCategory wall, long id, CancellationToken token, ILog log)
         {
             var pageSize = 100u;
             var wallResponse = await wall.GetAsync(new WallGetParams
@@ -66,6 +63,66 @@ namespace VOffline.Services.VkNetHacks
             }
 
             if ((int) total != result.Count)
+            {
+                log.Warn($"Expected {total} items, got {result.Count}. Maybe they were created/deleted, or it's VK bugs again.");
+            }
+
+            return result
+                .ToList();
+        }
+
+        public static async Task<IReadOnlyList<Comment>> GetAllCommentsAsync(this IWallCategory wall, long id, long postId, CancellationToken token, ILog log)
+        {
+            var pageSize = 100u;
+            var commentResponse = await wall.GetCommentsAsync(new WallGetCommentsParams()
+            {
+                Count = pageSize,
+                Offset = 0,
+                OwnerId = id,
+                PostId = postId,
+            });
+
+            log.Debug($"Post comments [{id} {postId}]: {commentResponse.Count}, offset {0}/{commentResponse.TotalCount}");
+
+            var total = commentResponse.TotalCount;
+            var result = new HashSet<Comment>((int)total);
+
+            void AddToResult(IEnumerable<Comment> posts)
+            {
+                foreach (var item in posts)
+                {
+                    if (!result.Add(item))
+                    {
+                        log.Warn($"Duplicate item [{item}]");
+                    }
+                }
+            }
+
+            AddToResult(commentResponse);
+
+            var remainingPages = total / pageSize;
+            var pageTasks = Enumerable.Range(1, (int)remainingPages)
+                .Select(pageNumber => (long)pageNumber * pageSize)
+                .Select(async offset =>
+                {
+                    var page = await wall.GetCommentsAsync(new WallGetCommentsParams()
+                    {
+                        Count = pageSize,
+                        Offset = offset,
+                        OwnerId = id,
+                        PostId = postId,
+                    });
+                    log.Debug($"Post comments [{id} {postId}]: {page.Count}, offset {0}/{page.TotalCount}");
+                    token.ThrowIfCancellationRequested();
+                    return page;
+                });
+            var pages = await Task.WhenAll(pageTasks);
+            foreach (var page in pages)
+            {
+                AddToResult(page);
+            }
+
+            if ((int)total != result.Count)
             {
                 log.Warn($"Expected {total} items, got {result.Count}. Maybe they were created/deleted, or it's VK bugs again.");
             }

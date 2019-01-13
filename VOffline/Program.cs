@@ -16,6 +16,7 @@ using Newtonsoft.Json.Converters;
 using VkNet;
 using VkNet.Abstractions.Core;
 using VkNet.Abstractions.Utils;
+using VkNet.Infrastructure;
 using VkNet.Model;
 using VkNet.Utils;
 using VOffline.Models;
@@ -62,6 +63,11 @@ namespace VOffline
                 serviceCollection.AddSingleton<FilesystemTools>();
                 serviceCollection.AddSingleton<DownloadQueueProvider>();
                 serviceCollection.AddSingleton<BackgroundDownloader>();
+
+                serviceCollection.AddSingleton<WallHandler>();
+                serviceCollection.AddSingleton<PostHandler>();
+                serviceCollection.AddSingleton<AudioHandler>();
+                serviceCollection.AddSingleton<PlaylistHandler>();
                 serviceCollection.AddSingleton<AttachmentProcessor>();
 
                 serviceCollection.AddTransient(provider => LogManager.GetLogger(Assembly.GetEntryAssembly(), typeof(Program)));
@@ -101,7 +107,9 @@ namespace VOffline
                 //builder.Services.AddSingleton<ILoggerProvider>((ILoggerProvider)new Log4NetProvider(options));
                 builder.AddProvider(new SimpleLoggerProvider(log));
             });
-            return new VkApi(sc);
+            var vkApi = new VkApi(sc);
+            vkApi.VkApiVersion.SetVersion(5,90);  // hack for linear comments without threads
+            return vkApi;
         }
 
         private static CancellationTokenSource CreateCancellationTokenSource()

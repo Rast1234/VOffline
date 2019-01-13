@@ -12,29 +12,27 @@ using VOffline.Services.VkNetHacks;
 
 namespace VOffline.Services.Handlers
 {
-    public class WallHandler : HandlerBase
+    public class WallHandler : HandlerBase<long>
     {
         private readonly VkApi vkApi;
-        private readonly AttachmentProcessor attachmentProcessor;
-        private readonly long id;
+        private readonly PostHandler postHandler;
 
-        public WallHandler(long id, VkApi vkApi, FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor):base(filesystemTools)
+        public WallHandler(VkApi vkApi, FilesystemTools filesystemTools, PostHandler postHandler):base(filesystemTools)
         {
-            this.id = id;
             this.vkApi = vkApi;
-            this.attachmentProcessor = attachmentProcessor;
+            this.postHandler = postHandler;
         }
 
-        public override async Task ProcessInternal(DirectoryInfo workDir, CancellationToken token, ILog log)
+        public override async Task ProcessInternal(long id, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
-            var allPosts = await vkApi.Wall.GetAllAsync(id, token, log);
+            var allPosts = await vkApi.Wall.GetAllPostsAsync(id, token, log);
             log.Debug($"Wall has {allPosts.Count} posts");
             var allTasks = allPosts
                 .OrderBy(x => x.Date)
-                .Select(p => new PostHandler(p, filesystemTools, attachmentProcessor).Process(workDir, token, log));
+                .Select(p => postHandler.Process(p, workDir, token, log));
             await Task.WhenAll(allTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Wall", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(long id, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Wall", CreateMode.MergeWithExisting);
     }
 }

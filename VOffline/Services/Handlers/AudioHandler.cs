@@ -22,20 +22,18 @@ using RestClient = RestSharp.RestClient;
 
 namespace VOffline.Services.Handlers
 {
-    public class AudioHandler : HandlerBase
+    public class AudioHandler : HandlerBase<long>
     {
-        private readonly long id;
         private readonly VkApi vkApi;
-        private readonly AttachmentProcessor attachmentProcessor;
+        private readonly PlaylistHandler playlistHandler;
 
-        public AudioHandler(long id, VkApi vkApi, FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
+        public AudioHandler(VkApi vkApi, FilesystemTools filesystemTools, PlaylistHandler playlistHandler) : base(filesystemTools)
         {
-            this.id = id;
             this.vkApi = vkApi;
-            this.attachmentProcessor = attachmentProcessor;
+            this.playlistHandler = playlistHandler;
         }
 
-        public override async Task ProcessInternal(DirectoryInfo workDir, CancellationToken token, ILog log)
+        public override async Task ProcessInternal(long id, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
             var vkPlaylists = await vkApi.Audio.GetAllPlaylistsAsync(id, token, log);
             log.Debug($"Audio: {vkPlaylists.Count} playlists");
@@ -58,10 +56,10 @@ namespace VOffline.Services.Handlers
 
             var allTasks = allPlaylists
                 .OrderBy(p => p.Playlist.CreateTime)
-                .Select(p => new PlaylistHandler(p, filesystemTools, attachmentProcessor).Process(workDir, token, log));
+                .Select(p => playlistHandler.Process(p, workDir, token, log));
             await Task.WhenAll(allTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Audio", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(long id, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Audio", CreateMode.MergeWithExisting);
     }
 }
