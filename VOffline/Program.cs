@@ -82,7 +82,7 @@ namespace VOffline
                 await services.GetRequiredService<Logic>().Run(cts.Token, log);
                 return 0;
             }
-            catch (TaskCanceledException e)
+            catch (TaskCanceledException)
             {
                 log.Warn($"Canceled by user");
                 return -2;

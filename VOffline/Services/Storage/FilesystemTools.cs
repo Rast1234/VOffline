@@ -222,17 +222,14 @@ namespace VOffline.Services.Storage
             var bakName = name;
             while (name.Length > 1)
             {
-                try
-                {
                     var testName = name + " (NNN)";  // extra filler for possible " (NNN)"
                     var testPath = Path.Combine(parentDir.FullName, testName);
-                    Path.GetFullPath(testPath);  // test if throws
-                    return Path.Combine(parentDir.FullName, name);
-                }
-                catch (PathTooLongException)
-                {
+                    if (testPath.Length < 248)
+                    {
+                        return Path.Combine(parentDir.FullName, name);
+                    }
+                    //Path.GetFullPath(testPath);  // should throw on long paths but does not work
                     name = name.Substring(0, Math.Max(1, name.Length - 1));
-                }
             }
             throw new PathTooLongException($"Tried to shorten [{bakName}] to [{name}] but path [{parentDir.FullName}] is still too long");
         }
