@@ -34,14 +34,14 @@ namespace VOffline.Services.Storage
                         directory = GetUniqueDirectory(parent, validName);
                         break;
                     case CreateMode.ThrowIfExists:
-                        directory = new DirectoryInfo(Path.Combine(parent.FullName, validName));
+                        directory = new DirectoryInfo(CombineCutPath(parent, validName));
                         if (directory.Exists)
                         {
                             throw new InvalidOperationException($"Dir already exists: {directory.FullName}");
                         }
                         break;
                     case CreateMode.MergeWithExisting:
-                        directory = new DirectoryInfo(Path.Combine(parent.FullName, validName));
+                        directory = new DirectoryInfo(CombineCutPath(parent, validName));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
@@ -69,14 +69,14 @@ namespace VOffline.Services.Storage
                         file = GetUniqueFile(parent, validName);
                         break;
                     case CreateMode.ThrowIfExists:
-                        file = new FileInfo(Path.Combine(parent.FullName, validName));
+                        file = new FileInfo(CombineCutPath(parent, validName));
                         if (file.Exists)
                         {
                             throw new InvalidOperationException($"File already exists: {file.FullName}");
                         }
                         break;
                     case CreateMode.MergeWithExisting:
-                        file = new FileInfo(Path.Combine(parent.FullName, validName));
+                        file = new FileInfo(CombineCutPath(parent, validName));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
@@ -91,8 +91,8 @@ namespace VOffline.Services.Storage
         {
             var validName = MakeValidName(desiredName);
             var completedName = $".{validName}.done.voffline";
-            var file = new FileInfo(Path.Combine(parent.FullName, validName));
-            var completedFile = new FileInfo(Path.Combine(parent.FullName, completedName));
+            var file = new FileInfo(CombineCutPath(parent, validName));
+            var completedFile = new FileInfo(CombineCutPath(parent, completedName));
             if (completedFile.Exists)
             {
                 log.Debug($"Skipping [{file.FullName}] because marked as competed");
@@ -117,8 +117,8 @@ namespace VOffline.Services.Storage
         {
             var validName = MakeValidName(desiredName);
             var completedName = $".{validName}.done.voffline";
-            var file = new FileInfo(Path.Combine(parent.FullName, validName));
-            var completedFile = new FileInfo(Path.Combine(parent.FullName, completedName));
+            var file = new FileInfo(CombineCutPath(parent, validName));
+            var completedFile = new FileInfo(CombineCutPath(parent, completedName));
             if (completedFile.Exists)
             {
                 log.Debug($"Skipping [{file.FullName}] because marked as competed");
@@ -171,7 +171,7 @@ namespace VOffline.Services.Storage
 
         public bool IsCompleted(DirectoryInfo dir)
         {
-            var file = new FileInfo(Path.Combine(dir.FullName, CompletedFilename));
+            var file = new FileInfo(CombineCutPath(dir, CompletedFilename));
             return file.Exists;
         }
 
@@ -185,7 +185,7 @@ namespace VOffline.Services.Storage
         {
             var name = Path.GetFileNameWithoutExtension(validName);
             var extension = Path.GetExtension(validName);
-            var fileInfo = new FileInfo(Path.Combine(parent.FullName, validName));
+            var fileInfo = new FileInfo(CombineCutPath(parent, validName));
             for (var i = 1;; i++)
             {
                 if (!fileInfo.Exists)
@@ -193,7 +193,7 @@ namespace VOffline.Services.Storage
                     return fileInfo;
                 }
 
-                fileInfo = new FileInfo(Path.Combine(parent.FullName, $"{name} ({i}){extension}"));
+                fileInfo = new FileInfo(CombineCutPath(parent, $"{name} ({i}){extension}"));
             }
         }
 
@@ -205,7 +205,7 @@ namespace VOffline.Services.Storage
         /// <returns></returns>
         private static DirectoryInfo GetUniqueDirectory(DirectoryInfo parent, string validName)
         {
-            var directoryInfo = new DirectoryInfo(Path.Combine(parent.FullName, validName));
+            var directoryInfo = new DirectoryInfo(CombineCutPath(parent, validName));
             for (var i = 1;; i++)
             {
                 if (!directoryInfo.Exists)
@@ -213,8 +213,28 @@ namespace VOffline.Services.Storage
                     return directoryInfo;
                 }
 
-                directoryInfo = new DirectoryInfo(Path.Combine(parent.FullName, $"{validName} ({i})"));
+                directoryInfo = new DirectoryInfo(CombineCutPath(parent, $"{validName} ({i})"));
             }
+        }
+
+        private static string CombineCutPath(DirectoryInfo parentDir, string name)
+        {
+            var bakName = name;
+            while (name.Length > 1)
+            {
+                try
+                {
+                    var testName = name + " (NNN)";  // extra filler for possible " (NNN)"
+                    var testPath = Path.Combine(parentDir.FullName, testName);
+                    Path.GetFullPath(testPath);  // test if throws
+                    return Path.Combine(parentDir.FullName, name);
+                }
+                catch (PathTooLongException)
+                {
+                    name = name.Substring(0, Math.Max(1, name.Length - 1));
+                }
+            }
+            throw new PathTooLongException($"Tried to shorten [{bakName}] to [{name}] but path [{parentDir.FullName}] is still too long");
         }
 
         private static string MakeValidName(string value) => string
