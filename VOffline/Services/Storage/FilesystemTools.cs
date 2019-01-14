@@ -219,19 +219,20 @@ namespace VOffline.Services.Storage
 
         private static string CombineCutPath(DirectoryInfo parentDir, string name)
         {
-            var bakName = name;
-            while (name.Length > 1)
+            var namePart = Path.GetFileNameWithoutExtension(name);
+            var extensionPart = Path.GetExtension(name);
+            while (namePart.Length > 1)
             {
-                    var testName = name + " (NNN)";  // extra filler for possible " (NNN)"
+                    var testName = $"{namePart} (NNN){extensionPart}";  // extra filler for possible " (NNN)"
                     var testPath = Path.Combine(parentDir.FullName, testName);
                     if (testPath.Length < 248)
                     {
-                        return Path.Combine(parentDir.FullName, name);
+                        return Path.Combine(parentDir.FullName, $"{namePart}{extensionPart}");
                     }
                     //Path.GetFullPath(testPath);  // should throw on long paths but does not work
-                    name = name.Substring(0, Math.Max(1, name.Length - 1));
+                    namePart = namePart.Substring(0, Math.Max(1, namePart.Length - 1));
             }
-            throw new PathTooLongException($"Tried to shorten [{bakName}] to [{name}] but path [{parentDir.FullName}] is still too long");
+            throw new PathTooLongException($"Tried to shorten [{name}] to [{namePart}{extensionPart}] but path [{parentDir.FullName}] is still too long");
         }
 
         private static string MakeValidName(string value) => string
