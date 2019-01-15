@@ -3,34 +3,32 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using VkNet;
 using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 using VOffline.Services.Vk;
-using VOffline.Services.VkNetHacks;
 
 namespace VOffline.Services.Handlers
 {
     public class AudioHandler : HandlerBase<long>
     {
-        private readonly VkApi vkApi;
+        private readonly VkApiUtils vkApiUtils;
         private readonly PlaylistHandler playlistHandler;
 
-        public AudioHandler(VkApi vkApi, FilesystemTools filesystemTools, PlaylistHandler playlistHandler) : base(filesystemTools)
+        public AudioHandler(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, PlaylistHandler playlistHandler) : base(filesystemTools)
         {
-            this.vkApi = vkApi;
+            this.vkApiUtils = vkApiUtils;
             this.playlistHandler = playlistHandler;
         }
 
         public override async Task ProcessInternal(long id, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
-            var vkPlaylists = await vkApi.Audio.GetAllPlaylistsAsync(id, token, log);
+            var vkPlaylists = await vkApiUtils.GetAllPagesAsync(vkApiUtils.Playlists(id), 200, token, log);
             log.Debug($"Audio: {vkPlaylists.Count} playlists");
-            var expandTasks = vkPlaylists.Select(p => vkApi.Audio.ExpandPlaylist(p, token, log));
+            var expandTasks = vkPlaylists.Select(p => vkApiUtils.ExpandPlaylist(p, token, log));
             var playlists = await Task.WhenAll(expandTasks);
             log.Debug($"Audio: {playlists.Sum(p => p.Audio.Count)} in {playlists.Length} playlists");
 
-            var allAudios = await vkApi.Audio.GetAllAudios(id, token, log);
+            var allAudios = await vkApiUtils.GetAllPagesAsync(vkApiUtils.Audios(id), long.MaxValue, token, log);
             var audioInPlaylists = playlists
                 .SelectMany(p => p.Audio.Select(t => t.Id))
                 .ToHashSet();

@@ -11,7 +11,6 @@ using Newtonsoft.Json;
 using VkNet.Abstractions.Utils;
 using VkNet.Utils;
 using VOffline.Models;
-using VOffline.Services.Vk;
 
 namespace VOffline.Services.VkNetHacks
 {
@@ -55,16 +54,27 @@ namespace VOffline.Services.VkNetHacks
                 Query = string.Join("&", queries)
             };
             logger?.LogDebug($"GET request: {url.Uri}");
-            var request = new HttpRequestMessage(HttpMethod.Get, uri);
-            return CallWithRetry(httpClient => httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token));
+            Task<HttpResponseMessage> HttpFunc(HttpClient httpClient)
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                return httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+            }
+
+            return CallWithRetry(HttpFunc);
         }
 
         public Task<HttpResponse<string>> PostAsync(Uri uri,IEnumerable<KeyValuePair<string, string>> parameters)
         {
-            logger?.LogDebug($"POST request: {uri}{Environment.NewLine}{Utilities.PrettyPrintJson(JsonConvert.SerializeObject(parameters))}");
-            var content = new FormUrlEncodedContent(parameters);
-            var request = new HttpRequestMessage(HttpMethod.Post, uri) { Content = content };
-            return CallWithRetry(httpClient => httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token));
+            var parametersList = parameters.ToList();
+            logger?.LogDebug($"POST request: {uri}{Environment.NewLine}{Utilities.PrettyPrintJson(JsonConvert.SerializeObject(parametersList))}");
+            Task<HttpResponseMessage> HttpFunc(HttpClient httpClient)
+            {
+                var content = new FormUrlEncodedContent(parametersList);
+                var request = new HttpRequestMessage(HttpMethod.Post, uri) {Content = content};
+                return httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+            }
+
+            return CallWithRetry(HttpFunc);
         }
 
         private async Task<HttpResponse<string>> CallWithRetry(Func<HttpClient, Task<HttpResponseMessage>> method)

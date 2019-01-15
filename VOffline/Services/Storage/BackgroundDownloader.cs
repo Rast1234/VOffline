@@ -27,7 +27,7 @@ namespace VOffline.Services.Storage
             IDownload item;
             int success;
 
-            for(success=0; (item = await GetItem(token)) != null; success++)
+            for (success = 0; (item = await GetItem(token)) != null;)
             {
                 // TODO: add second queue, semaphore and support for retries
                 try

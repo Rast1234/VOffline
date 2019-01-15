@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestSharp;
 using VOffline.Services;
-using VOffline.Services.Handlers;
 
 namespace VOffline.Models.Storage
 {

@@ -28,8 +28,9 @@ namespace VOffline.Services
         private readonly DownloadQueueProvider queueProvider;
         private readonly WallHandler wallHandler;
         private readonly AudioHandler audioHandler;
+        private readonly PhotoHandler photoHandler;
 
-        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, DownloadQueueProvider queueProvider, WallHandler wallHandler, AudioHandler audioHandler, IOptionsSnapshot<Settings> settings)
+        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, DownloadQueueProvider queueProvider, WallHandler wallHandler, AudioHandler audioHandler, PhotoHandler photoHandler, IOptionsSnapshot<Settings> settings)
         {
             this.settings = settings.Value;
             this.tokenMagic = tokenMagic;
@@ -40,6 +41,7 @@ namespace VOffline.Services
             this.queueProvider = queueProvider;
             this.wallHandler = wallHandler;
             this.audioHandler = audioHandler;
+            this.photoHandler = photoHandler;
         }
 
         public async Task Run(CancellationToken token, ILog log)
@@ -100,6 +102,9 @@ namespace VOffline.Services
                     break;
                 case Mode.Audio:
                     await audioHandler.Process(id, dir, token, log);
+                    break;
+                case Mode.Photos:
+                    await photoHandler.Process(id, dir, token, log);
                     break;
                 case Mode.All:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, "This mode should have been replaced before processing");

@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
@@ -7,20 +6,21 @@ using Newtonsoft.Json;
 using VkNet;
 using VkNet.Model;
 using VkNet.Model.Attachments;
-using VOffline.Services.Storage;
 using VOffline.Services.Vk;
 
-namespace VOffline.Services
+namespace VOffline.Services.Storage
 {
     public class AttachmentProcessor
     {
         private readonly VkApi vkApi;
+        private readonly VkApiUtils vkApiUtils;
         private readonly FilesystemTools filesystemTools;
         private readonly DownloadQueueProvider downloadQueueProvider;
 
-        public AttachmentProcessor(VkApi vkApi, FilesystemTools filesystemTools, DownloadQueueProvider downloadQueueProvider)
+        public AttachmentProcessor(VkApi vkApi, VkApiUtils vkApiUtils, FilesystemTools filesystemTools, DownloadQueueProvider downloadQueueProvider)
         {
             this.vkApi = vkApi;
+            this.vkApiUtils = vkApiUtils;
             this.filesystemTools = filesystemTools;
             this.downloadQueueProvider = downloadQueueProvider;
         }
@@ -53,16 +53,25 @@ namespace VOffline.Services
                     await downloadQueueProvider.EnqueueAll(link.ToDownloads(number, filesystemTools, workDir, log), token);
                     await link.SaveHumanReadableText(number, filesystemTools, workDir, token, log);
                     break;
-                
-                case VkNet.Model.Attachments.Video video:  // vlc же как-то получает MP4 поток. а что делать с видосами на хостингах?
+                case VkNet.Model.Attachments.AudioPlaylist audioPlaylist:
+                    var playlistWithAudio = await vkApiUtils.ExpandPlaylist(audioPlaylist, token, log);
+                    //await playlistHandler.Process(p, workDir, token, log)
+                    log.Warn($"TODO: playlist attachment");
+                    break;
+                case VkNet.Model.Attachments.Album album:
+                    var albumWithPhoto = await vkApiUtils.ExpandAlbum(album, token, log);
+                    //await albumHandler.Process(p, workDir, token, log)
+                    log.Warn($"TODO: photoalbum attachment");
+                    break;
+                case VkNet.Model.Attachments.Video video:
+                    await downloadQueueProvider.EnqueueAll(video.ToDownloads(number, filesystemTools, workDir, log), token);
+                    break;
 
                 case VkNet.Model.Attachments.Note note:  // note и page похожи
                 case VkNet.Model.Attachments.Page page:
 
-                case VkNet.Model.Attachments.Album album:  // это к фотографиям
-
-                case VkNet.Model.Attachments.AudioPlaylist audioPlaylist:  // это к аудиозаписям. так вообще бывает?
                 
+
                 // остальное похоже на хлам
                 case VkNet.Model.Attachments.ApplicationContent applicationContent:
                 case VkNet.Model.Attachments.AudioMessage audioMessage:

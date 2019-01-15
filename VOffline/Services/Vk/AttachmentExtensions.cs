@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using log4net;
 using Newtonsoft.Json;
 using VkNet;
+using VkNet.Enums.SafetyEnums;
 using VkNet.Model;
 using VkNet.Model.Attachments;
 using VOffline.Models.Storage;
@@ -32,7 +33,7 @@ namespace VOffline.Services.Vk
 
         public static IEnumerable<IDownload> ToDownloads(this Photo photo, int i, FilesystemTools filesystemTools, DirectoryInfo dir, ILog log)
         {
-            // TODO: not sure about order
+            // TODO: not sure about ANYTHING here
             var url = photo.BigPhotoSrc
                       ?? photo.Photo2560
                       ?? photo.PhotoSrc
@@ -45,7 +46,22 @@ namespace VOffline.Services.Vk
                       ?? photo.Photo100
                       ?? photo.Photo75
                       ?? photo.Photo50
-                ?? photo.Sizes.Select(s => (square:s.Width*s.Height, size:s)).OrderByDescending(x => x.square).FirstOrDefault().size.Url;
+                ?? photo.Sizes
+                          .Select(s => (square:s.Width*s.Height, size:s))
+                          .OrderByDescending(x => x.square)
+                          .FirstOrDefault(s => s.square > 0)   // width/height can be null
+                          .size?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.W)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.Z)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.Y)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.X)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.R)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.Q)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.P)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.O)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.M)?.Url
+                ?? photo.Sizes.FirstOrDefault(s => s.Type == PhotoSizeType.S)?.Url
+                ;
 
             // TODO: i guess it's always jpeg?
             var ext = Path.HasExtension(url?.AbsoluteUri) ? Path.GetExtension(url?.AbsoluteUri) : ".jpg";
@@ -57,6 +73,28 @@ namespace VOffline.Services.Vk
             else
             {
                 log.Warn($"Photo with no url! {JsonConvert.SerializeObject(photo)}");
+            }
+        }
+
+        public static IEnumerable<IDownload> ToDownloads(this Video video, int i, FilesystemTools filesystemTools, DirectoryInfo dir, ILog log)
+        {
+            var vkUrl = video.Files?.Mp4_1080
+                        ?? video.Files?.Mp4_720
+                        ?? video.Files?.Mp4_480
+                        ?? video.Files?.Mp4_360
+                        ?? video.Files?.Mp4_240;
+            if (vkUrl != null)
+            {
+                yield return new Download(vkUrl, dir, video.Title);
+            }
+            else if(video.Files?.External != null)
+            {
+                log.Warn($"Video {video.Id} [{video.Title}] is external");
+                yield return new Download(video.Files.External, dir, video.Title);
+            }
+            else
+            {
+                log.Warn($"Video {video.Id} [{video.Title}] has no links");
             }
         }
 

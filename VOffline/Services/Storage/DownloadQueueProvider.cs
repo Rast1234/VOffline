@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 using Nito.AsyncEx;
 using VOffline.Models;
 using VOffline.Models.Storage;
-using VOffline.Services.Vk;
 
 namespace VOffline.Services.Storage
 {

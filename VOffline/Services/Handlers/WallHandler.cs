@@ -3,27 +3,25 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using VkNet;
 using VOffline.Services.Storage;
 using VOffline.Services.Vk;
-using VOffline.Services.VkNetHacks;
 
 namespace VOffline.Services.Handlers
 {
     public class WallHandler : HandlerBase<long>
     {
-        private readonly VkApi vkApi;
+        private readonly VkApiUtils vkApiUtils;
         private readonly PostHandler postHandler;
 
-        public WallHandler(VkApi vkApi, FilesystemTools filesystemTools, PostHandler postHandler):base(filesystemTools)
+        public WallHandler(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, PostHandler postHandler):base(filesystemTools)
         {
-            this.vkApi = vkApi;
+            this.vkApiUtils = vkApiUtils;
             this.postHandler = postHandler;
         }
 
         public override async Task ProcessInternal(long id, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
-            var allPosts = await vkApi.Wall.GetAllPostsAsync(id, token, log);
+            var allPosts = await vkApiUtils.GetAllPagesAsync(vkApiUtils.Posts(id), 100, token, log);
             log.Debug($"Wall has {allPosts.Count} posts");
             var allTasks = allPosts
                 .OrderBy(x => x.Date)

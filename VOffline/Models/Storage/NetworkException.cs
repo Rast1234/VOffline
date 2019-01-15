@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace VOffline.Services
+namespace VOffline.Models.Storage
 {
     public class NetworkException : ApplicationException
     {

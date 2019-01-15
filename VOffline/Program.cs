@@ -69,6 +69,8 @@ namespace VOffline
                 serviceCollection.AddSingleton<CommentHandler>();
                 serviceCollection.AddSingleton<AudioHandler>();
                 serviceCollection.AddSingleton<PlaylistHandler>();
+                serviceCollection.AddSingleton<PhotoHandler>();
+                serviceCollection.AddSingleton<AlbumHandler>();
                 serviceCollection.AddSingleton<AttachmentProcessor>();
 
                 serviceCollection.AddTransient(provider => LogManager.GetLogger(Assembly.GetEntryAssembly(), typeof(Program)));
