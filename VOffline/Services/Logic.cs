@@ -69,26 +69,37 @@ namespace VOffline.Services
                 .Distinct()
                 .ToImmutableList();
             log.Debug($"Processing {JsonConvert.SerializeObject(modes)} for {string.Join(", ", identifiers.Select(x => $"[{x.name} {x.id}]"))}");
+            filesystemTools.LoadCache(log);
             var downloaderTask = downloader.Process(token, log);
 
-            var rootDir = filesystemTools.MkDir(settings.OutputPath);
-            foreach (var identifier in identifiers)
+            try
             {
-
-                var name = await vkApiUtils.GetName(identifier.id);
-                var workDir = filesystemTools.CreateSubdir(rootDir, name, CreateMode.MergeWithExisting);
-                log.Info($"id [{identifier.id}], name [{name}], path [{workDir.FullName}]");
-                foreach (var mode in modes)
+                foreach (var identifier in identifiers)
                 {
-                    await ProcessTarget(identifier.id, workDir, mode, token, log);
+                    var name = await vkApiUtils.GetName(identifier.id);
+                    var workDir = filesystemTools.CreateSubdir(filesystemTools.RootDir, name, CreateMode.OverwriteExisting);
+                    log.Info($"id [{identifier.id}], name [{name}], path [{workDir.FullName}]");
+                    foreach (var mode in modes)
+                    {
+                        await ProcessTarget(identifier.id, workDir, mode, token, log);
+                    }
+                }
+
+                queueProvider.Pending.CompleteAdding();
+                var downloadErrors = await downloaderTask;
+                foreach (var downloadError in downloadErrors)
+                {
+                    log.Warn($"Failed {downloadError.DesiredName}", downloadError.Errors.LastOrDefault());
                 }
             }
-
-            queueProvider.Pending.CompleteAdding();
-            var downloadErrors = await downloaderTask;
-            foreach (var downloadError in downloadErrors)
+            catch (TaskCanceledException)
             {
-                log.Warn($"Failed {downloadError.DesiredName}", downloadError.Errors.LastOrDefault());
+                queueProvider.Pending.CompleteAdding();
+                log.Warn($"Abandoned {queueProvider.Pending.GetConsumingEnumerable().Count()} pending downloads");
+            }
+            finally
+            {
+                filesystemTools.SaveCache(log);
             }
         }
 

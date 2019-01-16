@@ -15,8 +15,11 @@ using Newtonsoft.Json.Converters;
 using VkNet;
 using VkNet.Abstractions.Core;
 using VkNet.Abstractions.Utils;
+using VkNet.Model;
+using VkNet.Model.Attachments;
 using VOffline.Models;
 using VOffline.Models.Google;
+using VOffline.Models.Storage;
 using VOffline.Models.Vk;
 using VOffline.Services;
 using VOffline.Services.Handlers;
@@ -63,15 +66,16 @@ namespace VOffline
                 serviceCollection.AddSingleton<DownloadQueueProvider>();
                 serviceCollection.AddSingleton<BackgroundDownloader>();
 
-                serviceCollection.AddSingleton<WallHandler>();
-                serviceCollection.AddSingleton<PostHandler>();
-                serviceCollection.AddSingleton<CommentsHandler>();
-                serviceCollection.AddSingleton<CommentHandler>();
                 serviceCollection.AddSingleton<AudioHandler>();
-                serviceCollection.AddSingleton<PlaylistHandler>();
                 serviceCollection.AddSingleton<PhotoHandler>();
-                serviceCollection.AddSingleton<AlbumHandler>();
+                serviceCollection.AddSingleton<WallHandler>();
+                serviceCollection.AddSingleton<CommentsHandler>();
+                serviceCollection.AddSingleton<IHandler<Post>, PostHandler>();
+                serviceCollection.AddSingleton<IHandler<Comment>, CommentHandler>();
+                serviceCollection.AddSingleton<IHandler<PlaylistWithAudio>, PlaylistHandler>();
+                serviceCollection.AddSingleton<IHandler<AlbumWithPhoto>, AlbumHandler>();
                 serviceCollection.AddSingleton<AttachmentProcessor>();
+                serviceCollection.AddSingleton<IServiceProvider>(s => s);  // hack to avoid circular deps between AttachmentProcessor and Handlers
 
                 serviceCollection.AddTransient(provider => LogManager.GetLogger(Assembly.GetEntryAssembly(), typeof(Program)));
                 serviceCollection.AddTransient<AndroidAuth>();
@@ -83,11 +87,6 @@ namespace VOffline
                 var services = serviceCollection.BuildServiceProvider();
                 await services.GetRequiredService<Logic>().Run(cts.Token, log);
                 return 0;
-            }
-            catch (TaskCanceledException)
-            {
-                log.Warn($"Canceled by user");
-                return -2;
             }
             catch (Exception e)
             {

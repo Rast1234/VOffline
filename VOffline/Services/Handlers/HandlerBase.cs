@@ -8,7 +8,7 @@ using VOffline.Services.Storage;
 
 namespace VOffline.Services.Handlers
 {
-    public abstract class HandlerBase<T>
+    public abstract class HandlerBase<T> : IHandler<T>
     {
         protected readonly FilesystemTools filesystemTools;
 
@@ -24,26 +24,8 @@ namespace VOffline.Services.Handlers
             {
                 token.ThrowIfCancellationRequested();  // this helps stop synchronous stuff inside long nested loops
                 workDir = GetWorkingDirectory(data, parentDir);
-                if (IsCompletable)
-                {
-                    if (filesystemTools.IsCompleted(workDir))
-                    {
-                        log.Info($"Skipping [{workDir.FullName}] because marked as competed");
-                        return;
-                    }
-                }
-                
-
                 await ProcessInternal(data, workDir, token, log);
-                if (IsCompletable)
-                {
-                    filesystemTools.MarkAsCompleted(workDir);
-                }
-
-                var completedText = IsCompletable
-                    ? ", marked"
-                    : "";
-                log.Info($"Completed [{workDir.FullName}]{completedText}");
+                log.Info($"Completed crawling data for [{workDir.FullName}]");
 
             }
             catch (OperationCanceledException)
@@ -59,7 +41,5 @@ namespace VOffline.Services.Handlers
         public abstract Task ProcessInternal(T data, DirectoryInfo workDir, CancellationToken token, ILog log);
 
         public abstract DirectoryInfo GetWorkingDirectory(T data, DirectoryInfo parentDir);
-
-        protected virtual bool IsCompletable { get; } = false;
     }
 }

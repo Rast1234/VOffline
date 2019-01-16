@@ -1,24 +1,30 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using VkNet;
 using VkNet.Model;
 using VkNet.Model.Attachments;
+using VOffline.Models.Storage;
+using VOffline.Services.Handlers;
 using VOffline.Services.Vk;
 
 namespace VOffline.Services.Storage
 {
     public class AttachmentProcessor
     {
+        public IServiceProvider ServiceProvider { get; }
         private readonly VkApi vkApi;
         private readonly VkApiUtils vkApiUtils;
         private readonly FilesystemTools filesystemTools;
         private readonly DownloadQueueProvider downloadQueueProvider;
 
-        public AttachmentProcessor(VkApi vkApi, VkApiUtils vkApiUtils, FilesystemTools filesystemTools, DownloadQueueProvider downloadQueueProvider)
+        public AttachmentProcessor(VkApi vkApi, VkApiUtils vkApiUtils, FilesystemTools filesystemTools, DownloadQueueProvider downloadQueueProvider, IServiceProvider serviceProvider)
         {
+            ServiceProvider = serviceProvider;
             this.vkApi = vkApi;
             this.vkApiUtils = vkApiUtils;
             this.filesystemTools = filesystemTools;
@@ -55,13 +61,13 @@ namespace VOffline.Services.Storage
                     break;
                 case VkNet.Model.Attachments.AudioPlaylist audioPlaylist:
                     var playlistWithAudio = await vkApiUtils.ExpandPlaylist(audioPlaylist, token, log);
-                    //await playlistHandler.Process(p, workDir, token, log)
-                    log.Warn($"TODO: playlist attachment");
+                    var playlistHandler = ServiceProvider.GetRequiredService<IHandler<PlaylistWithAudio>>();
+                    await playlistHandler.Process(playlistWithAudio, workDir, token, log);
                     break;
                 case VkNet.Model.Attachments.Album album:
                     var albumWithPhoto = await vkApiUtils.ExpandAlbum(album, token, log);
-                    //await albumHandler.Process(p, workDir, token, log)
-                    log.Warn($"TODO: photoalbum attachment");
+                    var albumHandler = ServiceProvider.GetRequiredService<IHandler<AlbumWithPhoto>>();
+                    await albumHandler.Process(albumWithPhoto, workDir, token, log);
                     break;
                 case VkNet.Model.Attachments.Video video:
                     await downloadQueueProvider.EnqueueAll(video.ToDownloads(number, filesystemTools, workDir, log), token);

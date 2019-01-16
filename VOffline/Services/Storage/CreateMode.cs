@@ -4,6 +4,6 @@
     {
         AutoRenameCollisions,
         ThrowIfExists,
-        MergeWithExisting
+        OverwriteExisting
     }
 }

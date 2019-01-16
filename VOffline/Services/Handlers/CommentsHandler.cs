@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
+using VkNet.Model;
 using VkNet.Model.Attachments;
 using VOffline.Services.Storage;
 using VOffline.Services.Vk;
@@ -12,9 +13,9 @@ namespace VOffline.Services.Handlers
     public class CommentsHandler : HandlerBase<Post>
     {
         private readonly VkApiUtils vkApiUtils;
-        private readonly CommentHandler commentHandler;
+        private readonly IHandler<Comment> commentHandler;
 
-        public CommentsHandler(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, CommentHandler commentHandler) : base(filesystemTools)
+        public CommentsHandler(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, IHandler<Comment> commentHandler) : base(filesystemTools)
         {
             this.vkApiUtils = vkApiUtils;
             this.commentHandler = commentHandler;
@@ -34,6 +35,6 @@ namespace VOffline.Services.Handlers
             await Task.WhenAll(commentTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(Post post, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Comments", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(Post post, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Comments", CreateMode.OverwriteExisting);
     }
 }

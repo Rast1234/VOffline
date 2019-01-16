@@ -13,7 +13,10 @@ namespace VOffline.Services.Storage
     {
         public DownloadQueueProvider(IOptionsSnapshot<Settings> settings)
         {
-            Pending = new AsyncProducerConsumerQueue<IDownload>(settings.Value.DownloadQueueLimit);
+            var queueSizeLimit = settings.Value.DownloadQueueLimit;
+            Pending = queueSizeLimit > 0
+                ? new AsyncProducerConsumerQueue<IDownload>(settings.Value.DownloadQueueLimit)
+                : new AsyncProducerConsumerQueue<IDownload>();
         }
 
         public async Task EnqueueAll(IEnumerable<IDownload> items, CancellationToken token)

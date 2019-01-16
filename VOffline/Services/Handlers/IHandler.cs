@@ -5,8 +5,9 @@ using log4net;
 
 namespace VOffline.Services.Handlers
 {
-    public interface IHandler
+    public interface IHandler<T>
     {
-        Task Process(DirectoryInfo parentDir, CancellationToken token, ILog log);
+        Task Process(T data, DirectoryInfo parentDir, CancellationToken token, ILog log);
+        DirectoryInfo GetWorkingDirectory(T data, DirectoryInfo parentDir);
     }
 }

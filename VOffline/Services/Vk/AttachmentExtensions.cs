@@ -27,7 +27,7 @@ namespace VOffline.Services.Vk
             }
             else
             {
-                filesystemTools.CreateFile(dir, $"{i} {trackName}.mp3.deleted", CreateMode.MergeWithExisting);
+                filesystemTools.CreateFile(dir, $"{i} {trackName}.mp3.deleted", CreateMode.OverwriteExisting);
             }
         }
 
@@ -120,7 +120,7 @@ namespace VOffline.Services.Vk
             {
                 yield break;
             }
-            var pollDir = filesystemTools.CreateSubdir(dir, $"{i} {poll.GetName()}", CreateMode.MergeWithExisting);
+            var pollDir = filesystemTools.CreateSubdir(dir, $"{i} {poll.GetName()}", CreateMode.OverwriteExisting);
             var imageDownloads = photos.SelectMany((p, j) => p.ToDownloads(j, filesystemTools, pollDir, log));
             foreach (var imageDownload in imageDownloads)
             {
@@ -212,7 +212,7 @@ namespace VOffline.Services.Vk
         {
             if (!string.IsNullOrWhiteSpace(photo.Text))
             {
-                var textFile = filesystemTools.CreateFile(dir, $"{i} {photo.Id}.txt", CreateMode.MergeWithExisting);
+                var textFile = filesystemTools.CreateFile(dir, $"{i} {photo.Id}.txt", CreateMode.OverwriteExisting);
                 await File.WriteAllTextAsync(textFile.FullName, photo.Text, token);
             }
         }
@@ -232,20 +232,20 @@ namespace VOffline.Services.Vk
 
         public static async Task SaveHumanReadableText(this Poll poll, int i, FilesystemTools filesystemTools, DirectoryInfo dir, CancellationToken token, ILog log)
         {
-            var textFile = filesystemTools.CreateFile(dir, $"{i} {poll.GetName()}.txt", CreateMode.MergeWithExisting);
+            var textFile = filesystemTools.CreateFile(dir, $"{i} {poll.GetName()}.txt", CreateMode.OverwriteExisting);
             await File.WriteAllTextAsync(textFile.FullName, poll.Serialize(), token);
         }
 
         public static async Task SaveHumanReadableText(this Link link, int i, FilesystemTools filesystemTools, DirectoryInfo dir, CancellationToken token, ILog log)
         {
-            var textFile = filesystemTools.CreateFile(dir, $"{i} {link.Title}.txt", CreateMode.MergeWithExisting);
+            var textFile = filesystemTools.CreateFile(dir, $"{i} {link.Title}.txt", CreateMode.OverwriteExisting);
             await File.WriteAllTextAsync(textFile.FullName, link.Serialize(), token);
         }
 
         public static async Task SaveHumanReadableText(this IReadOnlyList<Comment> comments, FilesystemTools filesystemTools, DirectoryInfo dir, CancellationToken token, ILog log)
         {
             var data = string.Join("\n\n", comments.Select(c => c.Serialize()));
-            var textFile = filesystemTools.CreateFile(dir, $"comments.txt", CreateMode.MergeWithExisting);
+            var textFile = filesystemTools.CreateFile(dir, $"comments.txt", CreateMode.OverwriteExisting);
             await File.WriteAllTextAsync(textFile.FullName, data, token);
         }
     }

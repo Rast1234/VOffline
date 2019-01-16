@@ -1,20 +1,63 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
+using VOffline.Models;
 
 namespace VOffline.Services.Storage
 {
     public class FilesystemTools
     {
-        public DirectoryInfo MkDir(string path)
+        private readonly FileInfo cacheFile;
+
+        private readonly ConcurrentDictionary<string, DateTime> cache;
+
+        public DirectoryInfo RootDir { get; }
+
+        public FilesystemTools(IOptionsSnapshot<Settings> settings)
         {
-            var dir = new DirectoryInfo(path);
-            dir.Create();
-            dir.Refresh();
-            return dir;
+            RootDir = MkDir(settings.Value.OutputPath);
+            cacheFile = new FileInfo(CombineCutPath(RootDir, CacheFilename));
+            cache = new ConcurrentDictionary<string, DateTime>();
+        }
+
+        public void LoadCache(ILog log)
+        {
+            lock (LockObject)
+            {
+                var lines = File.ReadAllLines(cacheFile.FullName);
+                var separator = new[] {' '};
+                foreach (var line in lines)
+                {
+                    var items = line.Split(separator, 2);
+                    var datetime = DateTime.ParseExact(items[0], "O", CultureInfo.InvariantCulture);
+                    var path = items[1];
+                    cache[path] = datetime;
+                }
+            }
+
+            log.Info($"Cache loaded: {cache.Count} items, {cacheFile.FullName}");
+        }
+
+        public void SaveCache(ILog log)
+        {
+            lock (LockObject)
+            {
+                var data = cache
+                    .OrderBy(kv => kv.Value)
+                    .Select(kv => $"{kv.Value:O} {kv.Key}");
+                File.WriteAllLines(cacheFile.FullName, data);
+            }
+
+            log.Info($"Cache saved: {cache.Count} items, {cacheFile.FullName}");
         }
 
         public DirectoryInfo CreateSubdir(DirectoryInfo parent, string desiredName, CreateMode mode)
@@ -39,13 +82,15 @@ namespace VOffline.Services.Storage
                         {
                             throw new InvalidOperationException($"Dir already exists: {directory.FullName}");
                         }
+
                         break;
-                    case CreateMode.MergeWithExisting:
+                    case CreateMode.OverwriteExisting:
                         directory = new DirectoryInfo(CombineCutPath(parent, validName));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
                 }
+
                 directory.Create();
                 directory.Refresh();
                 return directory;
@@ -74,13 +119,15 @@ namespace VOffline.Services.Storage
                         {
                             throw new InvalidOperationException($"File already exists: {file.FullName}");
                         }
+
                         break;
-                    case CreateMode.MergeWithExisting:
+                    case CreateMode.OverwriteExisting:
                         file = new FileInfo(CombineCutPath(parent, validName));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
                 }
+
                 file.Create().Close();
                 file.Refresh();
                 return file;
@@ -90,10 +137,8 @@ namespace VOffline.Services.Storage
         public async Task WriteFileWithCompletionMark(DirectoryInfo parent, string desiredName, Func<Task<string>> contentTaskFunc, CancellationToken token, ILog log)
         {
             var validName = MakeValidName(desiredName);
-            var completedName = $".{validName}.done.voffline";
             var file = new FileInfo(CombineCutPath(parent, validName));
-            var completedFile = new FileInfo(CombineCutPath(parent, completedName));
-            if (completedFile.Exists)
+            if (cache.ContainsKey(file.FullName))
             {
                 log.Debug($"Skipping [{file.FullName}] because marked as competed");
                 return;
@@ -109,17 +154,14 @@ namespace VOffline.Services.Storage
                 await File.WriteAllTextAsync(file.FullName, content, token);
                 log.Info($"Saved [{desiredName}] as [{file.FullName}] with [{content.Length}] chars");
             }
-            await File.WriteAllTextAsync(completedFile.FullName, $"{DateTime.Now:O}", token);
-            completedFile.Attributes |= FileAttributes.Hidden;
+            cache[file.FullName] = DateTime.Now;
         }
 
         public async Task WriteFileWithCompletionMark(DirectoryInfo parent, string desiredName, Func<Task<byte[]>> contentTaskFunc, CancellationToken token, ILog log)
         {
             var validName = MakeValidName(desiredName);
-            var completedName = $".{validName}.done.voffline";
             var file = new FileInfo(CombineCutPath(parent, validName));
-            var completedFile = new FileInfo(CombineCutPath(parent, completedName));
-            if (completedFile.Exists)
+            if (cache.ContainsKey(file.FullName))
             {
                 log.Debug($"Skipping [{file.FullName}] because marked as competed");
                 return;
@@ -135,44 +177,16 @@ namespace VOffline.Services.Storage
                 await File.WriteAllBytesAsync(file.FullName, content, token);
                 log.Info($"Saved [{desiredName}] as [{file.FullName}] with [{content.Length}] bytes");
             }
-            await File.WriteAllTextAsync(completedFile.FullName, $"{DateTime.Now:O}", token);
-            completedFile.Attributes |= FileAttributes.Hidden;
+
+            cache[file.FullName] = DateTime.Now;
         }
 
-        public int Wipe(DirectoryInfo dir)
+        private DirectoryInfo MkDir(string path)
         {
-            lock (LockObject)
-            {
-                var count = 0;
-                foreach (var f in dir.GetFiles())
-                {
-                    f.Delete();
-                    count++;
-                }
-                foreach (var d in dir.GetDirectories())
-                {
-                    d.Delete(true);
-                    count++;
-                }
-
-                return count;
-            }
-        }
-
-        public void MarkAsCompleted(DirectoryInfo dir)
-        {
-            lock (LockObject)
-            {
-                var file = CreateFile(dir, CompletedFilename, CreateMode.ThrowIfExists);
-                File.WriteAllText(file.FullName, $"{DateTime.Now:O}");
-                file.Attributes |= FileAttributes.Hidden;
-            }
-        }
-
-        public bool IsCompleted(DirectoryInfo dir)
-        {
-            var file = new FileInfo(CombineCutPath(dir, CompletedFilename));
-            return file.Exists;
+            var dir = new DirectoryInfo(path);
+            dir.Create();
+            dir.Refresh();
+            return dir;
         }
 
         /// <summary>
@@ -223,15 +237,17 @@ namespace VOffline.Services.Storage
             var extensionPart = Path.GetExtension(name);
             while (namePart.Length > 1)
             {
-                    var testName = $"{namePart} (NNN){extensionPart}";  // extra filler for possible " (NNN)"
-                    var testPath = Path.Combine(parentDir.FullName, testName);
-                    if (testPath.Length < 248)
-                    {
-                        return Path.Combine(parentDir.FullName, $"{namePart}{extensionPart}");
-                    }
-                    //Path.GetFullPath(testPath);  // should throw on long paths but does not work
-                    namePart = namePart.Substring(0, Math.Max(1, namePart.Length - 1));
+                var testName = $"{namePart} (NNN){extensionPart}"; // extra filler for possible " (NNN)"
+                var testPath = Path.Combine(parentDir.FullName, testName);
+                if (testPath.Length < 248)
+                {
+                    return Path.Combine(parentDir.FullName, $"{namePart}{extensionPart}");
+                }
+
+                //Path.GetFullPath(testPath);  // should throw on long paths but does not work on net core?
+                namePart = namePart.Substring(0, Math.Max(1, namePart.Length - 1));
             }
+
             throw new PathTooLongException($"Tried to shorten [{name}] to [{namePart}{extensionPart}] but path [{parentDir.FullName}] is still too long");
         }
 
@@ -242,12 +258,12 @@ namespace VOffline.Services.Storage
         private static readonly char[] AllBadChars =
             Path.GetInvalidFileNameChars()
                 .Concat(Path.GetInvalidPathChars())
-                .Concat(new[] { '\\', '/', ':' })
+                .Concat(new[] {'\\', '/', ':'})
                 .Distinct()
                 .ToArray();
 
         private static readonly object LockObject = new object();
 
-        private static readonly string CompletedFilename = MakeValidName(".done.voffline");
+        private static readonly string CacheFilename = MakeValidName(".cache.voffline");
     }
 }

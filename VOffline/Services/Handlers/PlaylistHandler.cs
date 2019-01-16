@@ -21,8 +21,8 @@ namespace VOffline.Services.Handlers
         {
             if (!string.IsNullOrWhiteSpace(playlistWithAudio.Playlist.Description))
             {
-                var text = filesystemTools.CreateFile(workDir, $"__description.txt", CreateMode.MergeWithExisting);
-                File.WriteAllText(text.FullName, playlistWithAudio.Playlist.Description);
+                var text = filesystemTools.CreateFile(workDir, $"__description.txt", CreateMode.OverwriteExisting);
+                await File.WriteAllTextAsync(text.FullName, playlistWithAudio.Playlist.Description, token);
             }
 
             if (playlistWithAudio.Playlist.Cover != null)
@@ -30,10 +30,10 @@ namespace VOffline.Services.Handlers
                 await attachmentProcessor.ProcessAttachment(playlistWithAudio.Playlist.Cover, workDir, token, log);
             }
             
-            var attachmentTasks = playlistWithAudio.Audio.Select((a, i) => attachmentProcessor.ProcessAttachment(a, i, workDir, token, log));
+            var attachmentTasks = playlistWithAudio.Audio.Select((a, i) => attachmentProcessor.ProcessAttachment(a, i+1, workDir, token, log));
             await Task.WhenAll(attachmentTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(PlaylistWithAudio playlistWithAudio, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, $"{playlistWithAudio.Playlist.Title}", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(PlaylistWithAudio playlistWithAudio, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, $"{playlistWithAudio.Playlist.Title}", CreateMode.OverwriteExisting);
     }
 }

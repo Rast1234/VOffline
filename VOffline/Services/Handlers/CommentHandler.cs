@@ -20,10 +20,10 @@ namespace VOffline.Services.Handlers
 
         public override async Task ProcessInternal(Comment comment, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
-            var attachmentTasks = comment.Attachments.Select((a, i) => attachmentProcessor.ProcessAttachment((Attachment) a, i, workDir, token, log));
+            var attachmentTasks = comment.Attachments.Select((a, i) => attachmentProcessor.ProcessAttachment(a, i+1, workDir, token, log));
             await Task.WhenAll(attachmentTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(Comment comment, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, $"{comment.Date.Value:s} {comment.Id}", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(Comment comment, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, $"{comment.Date.Value:s} {comment.Id}", CreateMode.OverwriteExisting);
     }
 }

@@ -12,9 +12,9 @@ namespace VOffline.Services.Handlers
     public class AudioHandler : HandlerBase<long>
     {
         private readonly VkApiUtils vkApiUtils;
-        private readonly PlaylistHandler playlistHandler;
+        private readonly IHandler<PlaylistWithAudio> playlistHandler;
 
-        public AudioHandler(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, PlaylistHandler playlistHandler) : base(filesystemTools)
+        public AudioHandler(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, IHandler<PlaylistWithAudio> playlistHandler) : base(filesystemTools)
         {
             this.vkApiUtils = vkApiUtils;
             this.playlistHandler = playlistHandler;
@@ -47,6 +47,6 @@ namespace VOffline.Services.Handlers
             await Task.WhenAll(allTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(long id, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Audio", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(long id, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Audio", CreateMode.OverwriteExisting);
     }
 }

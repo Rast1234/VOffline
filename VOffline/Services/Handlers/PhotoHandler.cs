@@ -12,9 +12,9 @@ namespace VOffline.Services.Handlers
     public class PhotoHandler : HandlerBase<long>
     {
         private readonly VkApiUtils vkApiUtils;
-        private readonly AlbumHandler albumHandler;
+        private readonly IHandler<AlbumWithPhoto> albumHandler;
 
-        public PhotoHandler(VkApiUtils vkApiUtils, AlbumHandler albumHandler, FilesystemTools filesystemTools) : base(filesystemTools)
+        public PhotoHandler(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, IHandler<AlbumWithPhoto> albumHandler) : base(filesystemTools)
         {
             this.vkApiUtils = vkApiUtils;
             this.albumHandler = albumHandler;
@@ -47,6 +47,6 @@ namespace VOffline.Services.Handlers
             await Task.WhenAll(allTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(long id, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Photo", CreateMode.MergeWithExisting);
+        public override DirectoryInfo GetWorkingDirectory(long id, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Photo", CreateMode.OverwriteExisting);
     }
 }
