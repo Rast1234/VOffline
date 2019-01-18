@@ -5,19 +5,20 @@ using System.Threading.Tasks;
 using log4net;
 using VkNet.Model;
 using VkNet.Model.Attachments;
+using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 
-namespace VOffline.Services.Handlers
+namespace VOffline.Services.Walkers
 {
-    public class PostHandler : HandlerBase<Post>
+    public class PostWalker : WalkerBase<Post>
     {
         private readonly AttachmentProcessor attachmentProcessor;
-        private readonly CommentsHandler commentsHandler;
+        private readonly CommentsWalker commentsWalker;
 
-        public PostHandler(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor, CommentsHandler commentsHandler) : base(filesystemTools)
+        public PostWalker(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor, CommentsWalker commentsWalker) : base(filesystemTools)
         {
             this.attachmentProcessor = attachmentProcessor;
-            this.commentsHandler = commentsHandler;
+            this.commentsWalker = commentsWalker;
         }
 
         public override async Task ProcessInternal(Post post, DirectoryInfo workDir, CancellationToken token, ILog log)
@@ -33,7 +34,7 @@ namespace VOffline.Services.Handlers
 
             if (post.Comments?.Count > 0)
             {
-                await commentsHandler.Process(post, workDir, token, log);
+                await commentsWalker.Process(new PostComments(post), workDir, token, log);
             }
             
             // recursively walk reposts

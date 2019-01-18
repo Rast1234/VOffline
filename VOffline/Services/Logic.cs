@@ -10,7 +10,8 @@ using Newtonsoft.Json;
 using VkNet;
 using VkNet.Model;
 using VOffline.Models;
-using VOffline.Services.Handlers;
+using VOffline.Models.Storage;
+using VOffline.Services.Walkers;
 using VOffline.Services.Storage;
 using VOffline.Services.Token;
 using VOffline.Services.Vk;
@@ -25,12 +26,12 @@ namespace VOffline.Services
         private readonly VkApiUtils vkApiUtils;
         private readonly BackgroundDownloader downloader;
         private readonly FilesystemTools filesystemTools;
-        private readonly DownloadQueueProvider queueProvider;
-        private readonly WallHandler wallHandler;
-        private readonly AudioHandler audioHandler;
-        private readonly PhotoHandler photoHandler;
+        private readonly QueueProvider queueProvider;
+        private readonly WallWalker wallWalker;
+        private readonly AudioWalker audioWalker;
+        private readonly PhotoWalker photoWalker;
 
-        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, DownloadQueueProvider queueProvider, WallHandler wallHandler, AudioHandler audioHandler, PhotoHandler photoHandler, IOptionsSnapshot<Settings> settings)
+        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, QueueProvider queueProvider, WallWalker wallWalker, AudioWalker audioWalker, PhotoWalker photoWalker, IOptionsSnapshot<Settings> settings)
         {
             this.settings = settings.Value;
             this.tokenMagic = tokenMagic;
@@ -39,9 +40,9 @@ namespace VOffline.Services
             this.downloader = downloader;
             this.filesystemTools = filesystemTools;
             this.queueProvider = queueProvider;
-            this.wallHandler = wallHandler;
-            this.audioHandler = audioHandler;
-            this.photoHandler = photoHandler;
+            this.wallWalker = wallWalker;
+            this.audioWalker = audioWalker;
+            this.photoWalker = photoWalker;
         }
 
         public async Task Run(CancellationToken token, ILog log)
@@ -92,7 +93,7 @@ namespace VOffline.Services
                     log.Warn($"Failed {downloadError.DesiredName}", downloadError.Errors.LastOrDefault());
                 }
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
             {
                 queueProvider.Pending.CompleteAdding();
                 log.Warn($"Abandoned {queueProvider.Pending.GetConsumingEnumerable().Count()} pending downloads");
@@ -109,13 +110,13 @@ namespace VOffline.Services
             switch (mode)
             {
                 case Mode.Wall:
-                    await wallHandler.Process(id, dir, token, log);
+                    await wallWalker.Process(new WallCategory(id), dir, token, log);
                     break;
                 case Mode.Audio:
-                    await audioHandler.Process(id, dir, token, log);
+                    await audioWalker.Process(new AudioCategory(id), dir, token, log);
                     break;
                 case Mode.Photos:
-                    await photoHandler.Process(id, dir, token, log);
+                    await photoWalker.Process(new PhotoCategory(id), dir, token, log);
                     break;
                 case Mode.All:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, "This mode should have been replaced before processing");

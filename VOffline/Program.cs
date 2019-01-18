@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using log4net.Config;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileSystemGlobbing.Internal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -22,7 +25,7 @@ using VOffline.Models.Google;
 using VOffline.Models.Storage;
 using VOffline.Models.Vk;
 using VOffline.Services;
-using VOffline.Services.Handlers;
+using VOffline.Services.Walkers;
 using VOffline.Services.Storage;
 using VOffline.Services.Token;
 using VOffline.Services.Token.Google;
@@ -35,13 +38,54 @@ namespace VOffline
 
     public class Program
     {
+        public static async Task Test(CancellationToken token, ILog log)
+        {
+            log.Debug("started");
+            var r = new Random();
+            int i = 0;
+            var items = new List<KeyValuePair<int,int>>
+            {
+                new KeyValuePair<int, int>(1,1000),
+                new KeyValuePair<int, int>(1,2000),
+                new KeyValuePair<int, int>(1,3000),
+                new KeyValuePair<int, int>(1,4000),
+                new KeyValuePair<int, int>(1,5000),
+                new KeyValuePair<int, int>(1,6000),
+            };
+            var q = new AsyncQueue<KeyValuePair<int,int>>(items, async (data, t) =>
+            {
+                return await Task.Run( async () => {
+                    await Task.Delay(TimeSpan.FromSeconds(3), t);
+                    int count;
+                    lock (r)
+                    {
+                        count = r.Next(0, Math.Max(0, 5 - data.Key));
+                        i++;
+                    }
+                    var result = Enumerable.Repeat(new KeyValuePair<int, int>(data.Key + 1, i), count).ToList();
+                    log.Debug($"{data} => {JsonConvert.SerializeObject(result)}");
+                    return result;
+                }, t);
+                
+                
+            }, 2);
+            var task = q.ProcessEverythingAsync(token);
+            log.Debug("alala");
+            await task;
+            log.Debug("done");
+        }
+
         public static async Task<int> Main(string[] args)
         {
             var log = ConfigureLog4Net();
+            var cts = CreateCancellationTokenSource();
+            await Test(cts.Token, log);
+            Console.ReadLine();
+            return 0;
 
             try
             {
-                var cts = CreateCancellationTokenSource();
+                
                 ConfigureJsonSerializer();
 
                 var serviceCollection = new ServiceCollection();
@@ -63,17 +107,17 @@ namespace VOffline
                 serviceCollection.AddSingleton<VkApiUtils>();
                 serviceCollection.AddSingleton<VkApi>(s => CreateVkApi(s, cts, log));
                 serviceCollection.AddSingleton<FilesystemTools>();
-                serviceCollection.AddSingleton<DownloadQueueProvider>();
+                serviceCollection.AddSingleton<QueueProvider>();
                 serviceCollection.AddSingleton<BackgroundDownloader>();
 
-                serviceCollection.AddSingleton<AudioHandler>();
-                serviceCollection.AddSingleton<PhotoHandler>();
-                serviceCollection.AddSingleton<WallHandler>();
-                serviceCollection.AddSingleton<CommentsHandler>();
-                serviceCollection.AddSingleton<IHandler<Post>, PostHandler>();
-                serviceCollection.AddSingleton<IHandler<Comment>, CommentHandler>();
-                serviceCollection.AddSingleton<IHandler<PlaylistWithAudio>, PlaylistHandler>();
-                serviceCollection.AddSingleton<IHandler<AlbumWithPhoto>, AlbumHandler>();
+                serviceCollection.AddSingleton<IWalker<AudioCategory>, AudioWalker>();
+                serviceCollection.AddSingleton<IWalker<PhotoCategory>, PhotoWalker>();
+                serviceCollection.AddSingleton<IWalker<WallCategory>, WallWalker>();
+                serviceCollection.AddSingleton<IWalker<PostComments>, CommentsWalker>();
+                serviceCollection.AddSingleton<IWalker<Post>, PostWalker>();
+                serviceCollection.AddSingleton<IWalker<Comment>, CommentWalker>();
+                serviceCollection.AddSingleton<IWalker<PlaylistWithAudio>, PlaylistWalker>();
+                serviceCollection.AddSingleton<IWalker<AlbumWithPhoto>, AlbumWalker>();
                 serviceCollection.AddSingleton<AttachmentProcessor>();
                 serviceCollection.AddSingleton<IServiceProvider>(s => s);  // hack to avoid circular deps between AttachmentProcessor and Handlers
 

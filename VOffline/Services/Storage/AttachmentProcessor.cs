@@ -9,7 +9,7 @@ using VkNet;
 using VkNet.Model;
 using VkNet.Model.Attachments;
 using VOffline.Models.Storage;
-using VOffline.Services.Handlers;
+using VOffline.Services.Walkers;
 using VOffline.Services.Vk;
 
 namespace VOffline.Services.Storage
@@ -20,15 +20,15 @@ namespace VOffline.Services.Storage
         private readonly VkApi vkApi;
         private readonly VkApiUtils vkApiUtils;
         private readonly FilesystemTools filesystemTools;
-        private readonly DownloadQueueProvider downloadQueueProvider;
+        private readonly QueueProvider queueProvider;
 
-        public AttachmentProcessor(VkApi vkApi, VkApiUtils vkApiUtils, FilesystemTools filesystemTools, DownloadQueueProvider downloadQueueProvider, IServiceProvider serviceProvider)
+        public AttachmentProcessor(VkApi vkApi, VkApiUtils vkApiUtils, FilesystemTools filesystemTools, QueueProvider queueProvider, IServiceProvider serviceProvider)
         {
             ServiceProvider = serviceProvider;
             this.vkApi = vkApi;
             this.vkApiUtils = vkApiUtils;
             this.filesystemTools = filesystemTools;
-            this.downloadQueueProvider = downloadQueueProvider;
+            this.queueProvider = queueProvider;
         }
 
         public async Task ProcessAttachment(Attachment attachment, int number, DirectoryInfo workDir, CancellationToken token, ILog log)
@@ -41,36 +41,36 @@ namespace VOffline.Services.Storage
             switch (mediaAttachment)
             {
                 case VkNet.Model.Attachments.Photo photo:
-                    await downloadQueueProvider.EnqueueAll(photo.ToDownloads(number, filesystemTools, workDir, log), token);
+                    await queueProvider.EnqueueAllDownloads(photo.ToDownloads(number, filesystemTools, workDir, log), token);
                     await photo.SaveText(number, filesystemTools, workDir, token, log);
                     break;
                 case VkNet.Model.Attachments.Audio audio:
-                    await downloadQueueProvider.EnqueueAll(audio.ToDownloads(number, filesystemTools, workDir, log), token);
+                    await queueProvider.EnqueueAllDownloads(audio.ToDownloads(number, filesystemTools, workDir, log), token);
                     await audio.SaveLyrics(number, vkApi, filesystemTools, workDir, token, log);
                     break;
                 case VkNet.Model.Attachments.Document document:
-                    await downloadQueueProvider.EnqueueAll(document.ToDownloads(number, filesystemTools, workDir, log), token);
+                    await queueProvider.EnqueueAllDownloads(document.ToDownloads(number, filesystemTools, workDir, log), token);
                     break;
                 case VkNet.Model.Attachments.Poll poll:
-                    await downloadQueueProvider.EnqueueAll(poll.ToDownloads(number, filesystemTools, workDir, log), token);
+                    await queueProvider.EnqueueAllDownloads(poll.ToDownloads(number, filesystemTools, workDir, log), token);
                     await poll.SaveHumanReadableText(number, filesystemTools, workDir, token, log);
                     break;
                 case VkNet.Model.Attachments.Link link:
-                    await downloadQueueProvider.EnqueueAll(link.ToDownloads(number, filesystemTools, workDir, log), token);
+                    await queueProvider.EnqueueAllDownloads(link.ToDownloads(number, filesystemTools, workDir, log), token);
                     await link.SaveHumanReadableText(number, filesystemTools, workDir, token, log);
                     break;
                 case VkNet.Model.Attachments.AudioPlaylist audioPlaylist:
                     var playlistWithAudio = await vkApiUtils.ExpandPlaylist(audioPlaylist, token, log);
-                    var playlistHandler = ServiceProvider.GetRequiredService<IHandler<PlaylistWithAudio>>();
-                    await playlistHandler.Process(playlistWithAudio, workDir, token, log);
+                    var plalistWalker = ServiceProvider.GetRequiredService<IWalker<PlaylistWithAudio>>();
+                    await plalistWalker.Process(playlistWithAudio, workDir, token, log);
                     break;
                 case VkNet.Model.Attachments.Album album:
                     var albumWithPhoto = await vkApiUtils.ExpandAlbum(album, token, log);
-                    var albumHandler = ServiceProvider.GetRequiredService<IHandler<AlbumWithPhoto>>();
-                    await albumHandler.Process(albumWithPhoto, workDir, token, log);
+                    var albumWalker = ServiceProvider.GetRequiredService<IWalker<AlbumWithPhoto>>();
+                    await albumWalker.Process(albumWithPhoto, workDir, token, log);
                     break;
                 case VkNet.Model.Attachments.Video video:
-                    await downloadQueueProvider.EnqueueAll(video.ToDownloads(number, filesystemTools, workDir, log), token);
+                    await queueProvider.EnqueueAllDownloads(video.ToDownloads(number, filesystemTools, workDir, log), token);
                     break;
 
                 case VkNet.Model.Attachments.Note note:  // note и page похожи
@@ -96,7 +96,7 @@ namespace VOffline.Services.Storage
 
         public async Task ProcessAttachment(AudioCover audioCover, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
-            await downloadQueueProvider.EnqueueAll(audioCover.ToDownloads(filesystemTools, workDir, log), token);
+            await queueProvider.EnqueueAllDownloads(audioCover.ToDownloads(filesystemTools, workDir, log), token);
         }
     }
 }

@@ -6,13 +6,13 @@ using log4net;
 using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 
-namespace VOffline.Services.Handlers
+namespace VOffline.Services.Walkers
 {
-    public class AlbumHandler : HandlerBase<AlbumWithPhoto>
+    public class AlbumWalker : WalkerBase<AlbumWithPhoto>
     {
         private readonly AttachmentProcessor attachmentProcessor;
 
-        public AlbumHandler(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
+        public AlbumWalker(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
         {
             this.attachmentProcessor = attachmentProcessor;
         }

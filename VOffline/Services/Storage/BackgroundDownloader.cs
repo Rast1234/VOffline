@@ -11,10 +11,10 @@ namespace VOffline.Services.Storage
 {
     public class BackgroundDownloader
     {
-        private readonly DownloadQueueProvider queueProvider;
+        private readonly QueueProvider queueProvider;
         private readonly FilesystemTools filesystemTools;
 
-        public BackgroundDownloader(DownloadQueueProvider queueProvider, FilesystemTools filesystemTools)
+        public BackgroundDownloader(QueueProvider queueProvider, FilesystemTools filesystemTools)
         {
             this.queueProvider = queueProvider;
             this.filesystemTools = filesystemTools;

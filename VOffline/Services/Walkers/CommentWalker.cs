@@ -7,13 +7,13 @@ using VkNet.Model;
 using VkNet.Model.Attachments;
 using VOffline.Services.Storage;
 
-namespace VOffline.Services.Handlers
+namespace VOffline.Services.Walkers
 {
-    public class CommentHandler : HandlerBase<Comment>
+    public class CommentWalker : WalkerBase<Comment>
     {
         private readonly AttachmentProcessor attachmentProcessor;
 
-        public CommentHandler(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
+        public CommentWalker(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
         {
             this.attachmentProcessor = attachmentProcessor;
         }

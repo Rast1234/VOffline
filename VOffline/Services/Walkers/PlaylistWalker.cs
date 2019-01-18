@@ -6,13 +6,13 @@ using log4net;
 using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 
-namespace VOffline.Services.Handlers
+namespace VOffline.Services.Walkers
 {
-    public class PlaylistHandler : HandlerBase<PlaylistWithAudio>
+    public class PlaylistWalker : WalkerBase<PlaylistWithAudio>
     {
         private readonly AttachmentProcessor attachmentProcessor;
 
-        public PlaylistHandler(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
+        public PlaylistWalker(FilesystemTools filesystemTools, AttachmentProcessor attachmentProcessor) : base(filesystemTools)
         {
             this.attachmentProcessor = attachmentProcessor;
         }

@@ -7,26 +7,26 @@ using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 using VOffline.Services.Vk;
 
-namespace VOffline.Services.Handlers
+namespace VOffline.Services.Walkers
 {
-    public class PhotoHandler : HandlerBase<long>
+    public class PhotoWalker : WalkerBase<PhotoCategory>
     {
         private readonly VkApiUtils vkApiUtils;
-        private readonly IHandler<AlbumWithPhoto> albumHandler;
+        private readonly IWalker<AlbumWithPhoto> albumWalker;
 
-        public PhotoHandler(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, IHandler<AlbumWithPhoto> albumHandler) : base(filesystemTools)
+        public PhotoWalker(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, IWalker<AlbumWithPhoto> albumWalker) : base(filesystemTools)
         {
             this.vkApiUtils = vkApiUtils;
-            this.albumHandler = albumHandler;
+            this.albumWalker = albumWalker;
         }
 
-        public override async Task ProcessInternal(long id, DirectoryInfo workDir, CancellationToken token, ILog log)
+        public override async Task ProcessInternal(PhotoCategory photos, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
-            var vkAlbums = await vkApiUtils.GetAllPagesAsync(vkApiUtils.PhotoAlbums(id), int.MaxValue, token, log);
+            var vkAlbums = await vkApiUtils.GetAllPagesAsync(vkApiUtils.PhotoAlbums(photos.OwnerId), int.MaxValue, token, log);
             var expandTasks = vkAlbums.Select(album => vkApiUtils.ExpandAlbum(album, token, log));
             var albums = await Task.WhenAll(expandTasks);
 
-            var allPhotos = await vkApiUtils.GetAllPagesAsync(vkApiUtils.Photos(id), 100, token, log);
+            var allPhotos = await vkApiUtils.GetAllPagesAsync(vkApiUtils.Photos(photos.OwnerId), 100, token, log);
             var photosInAlbums = albums
                 .SelectMany(awp => awp.Photo.Select(photo => photo.Id.Value))
                 .ToHashSet();
@@ -43,10 +43,10 @@ namespace VOffline.Services.Handlers
 
             var allTasks = allAlbums
                 .OrderBy(p => p.Album.Created)
-                .Select(p => albumHandler.Process(p, workDir, token, log));
+                .Select(p => albumWalker.Process(p, workDir, token, log));
             await Task.WhenAll(allTasks);
         }
 
-        public override DirectoryInfo GetWorkingDirectory(long id, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Photo", CreateMode.OverwriteExisting);
+        public override DirectoryInfo GetWorkingDirectory(PhotoCategory photos, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Photo", CreateMode.OverwriteExisting);
     }
 }

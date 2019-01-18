@@ -6,13 +6,13 @@ using log4net;
 using Newtonsoft.Json;
 using VOffline.Services.Storage;
 
-namespace VOffline.Services.Handlers
+namespace VOffline.Services.Walkers
 {
-    public abstract class HandlerBase<T> : IHandler<T>
+    public abstract class WalkerBase<T> : IWalker<T>
     {
         protected readonly FilesystemTools filesystemTools;
 
-        protected HandlerBase(FilesystemTools filesystemTools)
+        protected WalkerBase(FilesystemTools filesystemTools)
         {
             this.filesystemTools = filesystemTools;
         }
@@ -25,7 +25,7 @@ namespace VOffline.Services.Handlers
                 token.ThrowIfCancellationRequested();  // this helps stop synchronous stuff inside long nested loops
                 workDir = GetWorkingDirectory(data, parentDir);
                 await ProcessInternal(data, workDir, token, log);
-                log.Info($"Completed crawling data for [{workDir.FullName}]");
+                log.Info($"Completed walking through [{workDir.FullName}]");
 
             }
             catch (OperationCanceledException)
