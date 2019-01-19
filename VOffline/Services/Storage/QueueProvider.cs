@@ -1,11 +1,17 @@
 ﻿using System;
+using System.Collections.Async;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using log4net;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using Nito.AsyncEx;
+using VkNet.Abstractions.Category;
+using VkNet.Model.RequestParams;
 using VOffline.Models;
 using VOffline.Models.Storage;
 
@@ -42,192 +48,152 @@ namespace VOffline.Services.Storage
         public Lazy<List<Exception>> Errors { get; }
     }
 
-    public delegate Task<IEnumerable<TData>> QueueItemProcessor<TData>(TData data, CancellationToken token);
 
-    public class AsyncSemaphoredCollection<T>
+    // enough async enumerables for now, let it just be list of new items
+    public delegate Task<IEnumerable<TData>> QueueItemSelector<TData>(TData data, long i, CancellationToken token, ILog log);
+
+
+    public class ParallelWalker<T>
     {
-        public AsyncSemaphoredCollection()
+        private int ParallelTasksLimit { get; }
+        public int ErrorLimit { get; }
+        public QueueItemSelector<T> ItemSelector { get; }
+        private AsyncCollection<QueueItem<T>> Collection { get; }
+        private ConcurrentQueue<QueueItem<T>> Failed { get; }
+        private CancellationTokenSource FinishTokenSource { get; }
+        private int Added { get; set; }
+        private int Processed { get; set; }
+        private object Lock { get; }
+
+        public ParallelWalker(int parallelTasksLimit, int errorLimit, QueueItemSelector<T> itemSelector)
         {
-            InnerCollection = new ConcurrentStack<T>();
-            Semaphore = new SemaphoreSlim(0);
+            ParallelTasksLimit = parallelTasksLimit;
+            ErrorLimit = errorLimit;
+            ItemSelector = itemSelector;
+            Collection = new AsyncCollection<QueueItem<T>>(new ConcurrentStack<QueueItem<T>>());
             FinishTokenSource = new CancellationTokenSource();
+            Failed = new ConcurrentQueue<QueueItem<T>>();
+            Lock = new object();
         }
 
-        public int Count => InnerCollection.Count;
-
-        private CancellationTokenSource FinishTokenSource { get; set; }
-
-        private SemaphoreSlim Semaphore { get; }
-
-        private ConcurrentStack<T> InnerCollection { get; }
-
-        public async Task<T> Get(CancellationToken token)
+        public async Task Start(CancellationToken token, ILog log)
         {
-            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(FinishTokenSource.Token, token))
-            {
-                using (await Semaphore.LockAsync(linkedCts.Token).AsTask())
-                {
-                    if (!InnerCollection.TryPop(out var data))
-                    {
-                        throw new InvalidOperationException($"InnerCollection is empty");
-                    }
+            await EnumerateCollection(log).ParallelForEachAsync((item, i) => EachItem(item, i, token, log), ParallelTasksLimit, token);
+        }
 
-                    return data;
+        private async Task EachItem(QueueItem<T> item, long i, CancellationToken token, ILog log)
+        {
+            var result = await ItemSelector(item.Data, i, token, log);
+            log.Warn("! enter L1");
+            lock (Lock)
+            {
+                foreach (var x in result)
+                {
+                    var newItem = new QueueItem<T>(x);
+                    Collection.Add(newItem, token);
+                    Added++;
                 }
             }
+            log.Warn("! leave L1");
+
+            /*
+            await ProcessItem(item, i, log).ParallelForEachAsync(x =>
+            {
+                lock (Lock)
+                {
+                    Collection.Add(x, token);
+                    Added++;
+                }
+
+                return Task.CompletedTask;
+            }, 3, token);
+            */
+            log.Warn("! enter L2");
+            lock (Lock)
+            {
+                Processed++;
+                 if (Added == Processed && FinishTokenSource.IsCancellationRequested)
+                {
+                    Collection.CompleteAdding();
+                }
+            }
+            log.Warn("! leave L2");
+        }
+
+        private IAsyncEnumerator<QueueItem<T>> ProcessItem(QueueItem<T> item, long i, ILog log)
+        {
+            return new AsyncEnumerator<QueueItem<T>>(async yield =>
+            {
+                // TODO: some actual work here
+                try
+                {
+                    var result = await ItemSelector(item.Data, i, yield.CancellationToken, log);
+                    foreach (var x in result)
+                    {
+                        var newItem = new QueueItem<T>(x);
+                        await yield.ReturnAsync(newItem);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    item.Errors.Value.Add(e);
+                    if (item.Errors.Value.Count >= ErrorLimit)
+                    {
+                        Failed.Enqueue(item);
+                    }
+                    else
+                    {
+                        await yield.ReturnAsync(item);
+                    }
+                }
+            });
         }
 
         public void Add(T data)
         {
-            FinishTokenSource.Token.ThrowIfCancellationRequested();
-            InnerCollection.Push(data);
-            Semaphore.Release(1);
+            lock (Lock)
+            {
+                FinishTokenSource.Token.ThrowIfCancellationRequested();
+                var item = new QueueItem<T>(data);
+                Collection.Add(item);
+                Added++;
+            }
+            
         }
 
         public void Finish()
         {
             FinishTokenSource.Cancel();
         }
-    }
 
-    public class AsyncQueue<TData>
-    {
-        public AsyncQueue(IEnumerable<TData> initialData, QueueItemProcessor<TData> processor, int errorLimit)
+        private IAsyncEnumerator<QueueItem<T>> EnumerateCollection(ILog log)
         {
-            var queueData = initialData.Select(d => new QueueItem<TData>(d));
-            Pending = new AsyncSemaphoredCollection<QueueItem<TData>>();
-            foreach (var queueItem in queueData)
+            return new AsyncEnumerator<QueueItem<T>>(async yield =>
             {
-                Pending.Add(queueItem);
-            }
-
-            Running = new ConcurrentDictionary<QueueItem<TData>, byte>();
-            Failed = new ConcurrentDictionary<QueueItem<TData>, DateTime>();
-            ErrorLimit = errorLimit;
-            Semaphore = new SemaphoreSlim(1, 1);
-            Processor = processor;
+                var x = await GetItem(yield.CancellationToken);
+                while (x != null)
+                {
+                    await yield.ReturnAsync(x);
+                    x = await GetItem(yield.CancellationToken);
+                }
+            });
         }
 
-
-        private AsyncSemaphoredCollection<QueueItem<TData>> Pending { get; }
-        private ConcurrentDictionary<QueueItem<TData>, byte> Running { get; }
-        private ConcurrentDictionary<QueueItem<TData>, DateTime> Failed { get; }
-        private SemaphoreSlim Semaphore { get; }
-        private int ErrorLimit { get; }
-        private QueueItemProcessor<TData> Processor { get; }
-
-        public async Task ProcessEverythingAsync(CancellationToken token)
-        {
-            /*
-            TODO: 2 semaphores:
-                * Modification semaphore between collections. single wait/release.
-                * Dequeue semaphore. release N on add N items, wait on dequeue and also wait on modification semaphore
-             */
-            while (!IsEmpty())
-            {
-                var item = await Dequeue(token);
-                await ProcessItemAsync(item, token);
-            }
-        }
-
-        private async Task ProcessItemAsync(QueueItem<TData> item, CancellationToken token)
+        private async Task<QueueItem<T>> GetItem(CancellationToken token)
         {
             try
             {
-                var result = await Processor(item.Data, token);
-                foreach (var newData in result)
-                {
-                    var newItem = new QueueItem<TData>(newData);
-                    await Enqueue(newItem, token);
-                }
-
-                await Success(item, token);
+                return await Collection.TakeAsync(token);
             }
-            catch (OperationCanceledException)
+            catch (InvalidOperationException)
             {
-                throw;
+                // thrown if finished while waiting for item
+                return null;
             }
-            catch (Exception e)
-            {
-                item.Errors.Value.Add(e);
-                if (item.Errors.Value.Count >= ErrorLimit)
-                {
-                    await Fail(item, token);
-                }
-                else
-                {
-                    await Requeue(item, token);
-                }
-            }
-
-        }
-
-        private async Task Enqueue(QueueItem<TData> item, CancellationToken token)
-        {
-            await Semaphore.WaitAsync(token);
-            Pending.Add(item);
-            Semaphore.Release();
-        }
-
-        private async Task<QueueItem<TData>> Dequeue(CancellationToken token)
-        {
-            var item = await Pending.Get(token);
-            await Semaphore.WaitAsync(token);
-            if (!Running.TryAdd(item, 0))
-            {
-                throw new InvalidOperationException($"Duplicate running item");
-            }
-
-            Semaphore.Release();
-            return item;
-        }
-
-        private async Task Success(QueueItem<TData> item, CancellationToken token)
-        {
-            await Semaphore.WaitAsync(token);
-            if (!Running.TryRemove(item, out var _))
-            {
-                throw new InvalidOperationException($"Running item lost");
-            }
-            Semaphore.Release();
-        }
-
-        private async Task Fail(QueueItem<TData> item, CancellationToken token)
-        {
-            await Semaphore.WaitAsync(token);
-            if (!Running.TryRemove(item, out var _))
-            {
-                throw new InvalidOperationException($"Running item lost");
-            }
-
-            if (!Failed.TryAdd(item, DateTime.Now))
-            {
-                throw new InvalidOperationException($"Duplicate failed item");
-            }
-            Semaphore.Release();
-        }
-
-        private async Task Requeue(QueueItem<TData> item, CancellationToken token)
-        {
-            await Semaphore.WaitAsync(token);
-            if (!Running.TryRemove(item, out var _))
-            {
-                throw new InvalidOperationException($"Running item lost");
-            }
-
-            Pending.Add(item);
-            Semaphore.Release();
-        }
-
-        private bool IsEmpty()
-        {
-            if (Pending.Count != 0 || Running.Count != 0)
-            {
-                return false;
-            }
-
-            Pending.Finish();
-            return true;
         }
     }
 }

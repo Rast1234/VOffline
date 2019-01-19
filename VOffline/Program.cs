@@ -1,16 +1,15 @@
 ﻿using System;
+using System.Collections.Async;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using log4net.Config;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileSystemGlobbing.Internal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -38,41 +37,48 @@ namespace VOffline
 
     public class Program
     {
+        public static async Task Test2(CancellationToken token, ILog log)
+        {
+            log.Debug("started");
+            var l = new List<int> {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+            foreach (var i in l)
+            {
+                log.Debug($">>> {i}");
+                await Task.Delay(TimeSpan.FromSeconds(i), token);
+                log.Debug($"<<< {i}");
+            }
+        }
+
         public static async Task Test(CancellationToken token, ILog log)
         {
             log.Debug("started");
-            var r = new Random();
-            int i = 0;
-            var items = new List<KeyValuePair<int,int>>
-            {
-                new KeyValuePair<int, int>(1,1000),
-                new KeyValuePair<int, int>(1,2000),
-                new KeyValuePair<int, int>(1,3000),
-                new KeyValuePair<int, int>(1,4000),
-                new KeyValuePair<int, int>(1,5000),
-                new KeyValuePair<int, int>(1,6000),
-            };
-            var q = new AsyncQueue<KeyValuePair<int,int>>(items, async (data, t) =>
-            {
-                return await Task.Run( async () => {
-                    await Task.Delay(TimeSpan.FromSeconds(3), t);
-                    int count;
-                    lock (r)
-                    {
-                        count = r.Next(0, Math.Max(0, 5 - data.Key));
-                        i++;
-                    }
-                    var result = Enumerable.Repeat(new KeyValuePair<int, int>(data.Key + 1, i), count).ToList();
-                    log.Debug($"{data} => {JsonConvert.SerializeObject(result)}");
-                    return result;
-                }, t);
-                
-                
-            }, 2);
-            var task = q.ProcessEverythingAsync(token);
-            log.Debug("alala");
-            await task;
+            //await new AsyncDfsWalk(log).Start(token);
+            var pw = new ParallelWalker<int>(20, 2, TestSelector);
+            var t = pw.Start(token, log);
+            pw.Add(10);
+            pw.Add(10);
+            pw.Add(10);
+            await Task.Delay(TimeSpan.FromSeconds(100), token);
+            log.Debug("KEK");
+            pw.Add(7);
+            pw.Finish();
+            await t;
             log.Debug("done");
+        }
+
+        private static async Task<IEnumerable<int>> TestSelector(int data, long i, CancellationToken token, ILog log)
+        {
+            log.Debug($"> {i}: {data}");
+            await Task.Delay(TimeSpan.FromSeconds(data));
+            if (data < 5)
+            {
+                log.Debug($"< {i}: {data}: []");
+                return new List<int>();
+            }
+
+            var result = new List<int> {1, 2, data - 1};
+            log.Debug($"< {i}: {data}: {JsonConvert.SerializeObject(result)}");
+            return result;
         }
 
         public static async Task<int> Main(string[] args)
