@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using VkNet;
+using VkNet.Abstractions;
 using VkNet.Abstractions.Core;
 using VkNet.Abstractions.Utils;
 using VkNet.Model;
@@ -24,7 +25,10 @@ using VOffline.Models.Google;
 using VOffline.Models.Storage;
 using VOffline.Models.Vk;
 using VOffline.Services;
-using VOffline.Services.Walkers;
+using VOffline.Services.Handlers;
+using VOffline.Services.Handlers.Attachments;
+using VOffline.Services.Handlers.Categories;
+using VOffline.Services.Queues;
 using VOffline.Services.Storage;
 using VOffline.Services.Token;
 using VOffline.Services.Token.Google;
@@ -37,57 +41,10 @@ namespace VOffline
 
     public class Program
     {
-        public static async Task Test2(CancellationToken token, ILog log)
-        {
-            log.Debug("started");
-            var l = new List<int> {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-            foreach (var i in l)
-            {
-                log.Debug($">>> {i}");
-                await Task.Delay(TimeSpan.FromSeconds(i), token);
-                log.Debug($"<<< {i}");
-            }
-        }
-
-        public static async Task Test(CancellationToken token, ILog log)
-        {
-            log.Debug("started");
-            //await new AsyncDfsWalk(log).Start(token);
-            var pw = new ParallelWalker<int>(20, 2, TestSelector);
-            var t = pw.Start(token, log);
-            pw.Add(10);
-            pw.Add(10);
-            pw.Add(10);
-            await Task.Delay(TimeSpan.FromSeconds(100), token);
-            log.Debug("KEK");
-            pw.Add(7);
-            pw.Finish();
-            await t;
-            log.Debug("done");
-        }
-
-        private static async Task<IEnumerable<int>> TestSelector(int data, long i, CancellationToken token, ILog log)
-        {
-            log.Debug($"> {i}: {data}");
-            await Task.Delay(TimeSpan.FromSeconds(data));
-            if (data < 5)
-            {
-                log.Debug($"< {i}: {data}: []");
-                return new List<int>();
-            }
-
-            var result = new List<int> {1, 2, data - 1};
-            log.Debug($"< {i}: {data}: {JsonConvert.SerializeObject(result)}");
-            return result;
-        }
-
         public static async Task<int> Main(string[] args)
         {
             var log = ConfigureLog4Net();
             var cts = CreateCancellationTokenSource();
-            await Test(cts.Token, log);
-            Console.ReadLine();
-            return 0;
 
             try
             {
@@ -110,24 +67,37 @@ namespace VOffline
                 serviceCollection.AddSingleton<Random>();
                 serviceCollection.AddSingleton<GoogleHttpRequests>();
                 serviceCollection.AddSingleton<VkHttpRequests>();
-                serviceCollection.AddSingleton<VkApiUtils>();
-                serviceCollection.AddSingleton<VkApi>(s => CreateVkApi(s, cts, log));
-                serviceCollection.AddSingleton<FilesystemTools>();
+
+                serviceCollection.AddSingleton<IVkApi>(s => CreateVkApi(s, cts, log));
+                serviceCollection.AddSingleton<FileSystemTools>();
                 serviceCollection.AddSingleton<QueueProvider>();
-                serviceCollection.AddSingleton<BackgroundDownloader>();
+                
 
-                serviceCollection.AddSingleton<IWalker<AudioCategory>, AudioWalker>();
-                serviceCollection.AddSingleton<IWalker<PhotoCategory>, PhotoWalker>();
-                serviceCollection.AddSingleton<IWalker<WallCategory>, WallWalker>();
-                serviceCollection.AddSingleton<IWalker<PostComments>, CommentsWalker>();
-                serviceCollection.AddSingleton<IWalker<Post>, PostWalker>();
-                serviceCollection.AddSingleton<IWalker<Comment>, CommentWalker>();
-                serviceCollection.AddSingleton<IWalker<PlaylistWithAudio>, PlaylistWalker>();
-                serviceCollection.AddSingleton<IWalker<AlbumWithPhoto>, AlbumWalker>();
-                serviceCollection.AddSingleton<AttachmentProcessor>();
-                serviceCollection.AddSingleton<IServiceProvider>(s => s);  // hack to avoid circular deps between AttachmentProcessor and Handlers
+                serviceCollection.AddTransient<IHandler<Nested<AudioCategory>>, AudioCategoryHandler>();
+                serviceCollection.AddTransient<IHandler<Nested<PhotoCategory>>, PhotoCategoryHandler>();
+                serviceCollection.AddTransient<IHandler<Nested<WallCategory>>, WallCategoryHandler>();
+                serviceCollection.AddTransient<IHandler<Nested<PostComments>>, PostCommentsCategoryHandler>();
+                serviceCollection.AddTransient<IHandler<Nested<Post>>, PostCategoryHandler>();
+                serviceCollection.AddTransient<IHandler<Nested<Comment>>, CommentCategoryHandler>();
+                serviceCollection.AddTransient<IHandler<Nested<PlaylistWithAudio>>, PlaylistCategoryHandler>();
+                serviceCollection.AddTransient<IHandler<Nested<AlbumWithPhoto>>, AlbumCategoryHandler>();
 
-                serviceCollection.AddTransient(provider => LogManager.GetLogger(Assembly.GetEntryAssembly(), typeof(Program)));
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<Album>>, AlbumAttachmentHandler>();
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<Audio>>, AudioAttachmentHandler>();
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<AudioCover>>, AudioCoverAttachmentHandler>();
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<AudioPlaylist>>, AudioPlaylistAttachmentHandler>();
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<Document>>, DocumentAttachmentHandler>();
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<Link>>, LinkAttachmentHandler>();
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<Photo>>, PhotoAttachmentHandler>();
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<Poll>>, PollAttachmentHandler>();
+                serviceCollection.AddTransient<IHandler<OrderedAttachment<Video>>, VideoAttachmentHandler>();
+
+                serviceCollection.AddSingleton<IServiceProvider>(s => s);  // service locator hack
+
+                serviceCollection.AddTransient<ILog>(provider => LogManager.GetLogger(Assembly.GetEntryAssembly(), typeof(Program)));
+                serviceCollection.AddTransient<VkApiUtils>();
+                serviceCollection.AddTransient<BackgroundDownloader>();
+                serviceCollection.AddTransient<JobProcessor>();
                 serviceCollection.AddTransient<AndroidAuth>();
                 serviceCollection.AddTransient<VkTokenReceiver>();
                 serviceCollection.AddTransient<MTalk>();
@@ -141,11 +111,11 @@ namespace VOffline
             catch (Exception e)
             {
                 log.Fatal(e);
-                return -1;
+                throw;
             }
         }
 
-        private static VkApi CreateVkApi(IServiceProvider services, CancellationTokenSource cancellationTokenSource, ILog log)
+        private static IVkApi CreateVkApi(IServiceProvider services, CancellationTokenSource cancellationTokenSource, ILog log)
         {
             // VkNet uses its own DI for internal services
             var sc = new ServiceCollection();

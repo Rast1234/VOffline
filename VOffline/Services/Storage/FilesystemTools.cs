@@ -14,7 +14,7 @@ using VOffline.Models;
 
 namespace VOffline.Services.Storage
 {
-    public class FilesystemTools
+    public class FileSystemTools
     {
         private readonly FileInfo cacheFile;
 
@@ -22,7 +22,7 @@ namespace VOffline.Services.Storage
 
         public DirectoryInfo RootDir { get; }
 
-        public FilesystemTools(IOptionsSnapshot<Settings> settings)
+        public FileSystemTools(IOptionsSnapshot<Settings> settings)
         {
             RootDir = MkDir(settings.Value.OutputPath);
             cacheFile = new FileInfo(CombineCutPath(RootDir, CacheFilename));
@@ -33,6 +33,10 @@ namespace VOffline.Services.Storage
         {
             lock (LockObject)
             {
+                if (!cacheFile.Exists)
+                {
+                    return;
+                }
                 var lines = File.ReadAllLines(cacheFile.FullName);
                 var separator = new[] {' '};
                 foreach (var line in lines)

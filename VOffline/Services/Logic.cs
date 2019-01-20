@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
@@ -8,10 +9,12 @@ using log4net;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using VkNet;
+using VkNet.Abstractions;
 using VkNet.Model;
 using VOffline.Models;
 using VOffline.Models.Storage;
-using VOffline.Services.Walkers;
+using VOffline.Services.Handlers;
+using VOffline.Services.Queues;
 using VOffline.Services.Storage;
 using VOffline.Services.Token;
 using VOffline.Services.Vk;
@@ -20,45 +23,65 @@ namespace VOffline.Services
 {
     public class Logic
     {
-        private readonly Settings settings;
         private readonly TokenMagic tokenMagic;
-        private readonly VkApi vkApi;
+        private readonly IVkApi vkApi;
         private readonly VkApiUtils vkApiUtils;
         private readonly BackgroundDownloader downloader;
-        private readonly FilesystemTools filesystemTools;
+        private readonly JobProcessor jobProcessor;
+        private readonly FileSystemTools fileSystemTools;
         private readonly QueueProvider queueProvider;
-        private readonly WallWalker wallWalker;
-        private readonly AudioWalker audioWalker;
-        private readonly PhotoWalker photoWalker;
+        private readonly Settings settings;
 
-        public Logic(TokenMagic tokenMagic, VkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, FilesystemTools filesystemTools, QueueProvider queueProvider, WallWalker wallWalker, AudioWalker audioWalker, PhotoWalker photoWalker, IOptionsSnapshot<Settings> settings)
+        public Logic(TokenMagic tokenMagic, IVkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, JobProcessor jobProcessor, FileSystemTools fileSystemTools, QueueProvider queueProvider, IOptionsSnapshot<Settings> settings)
         {
-            this.settings = settings.Value;
             this.tokenMagic = tokenMagic;
             this.vkApi = vkApi;
             this.vkApiUtils = vkApiUtils;
             this.downloader = downloader;
-            this.filesystemTools = filesystemTools;
+            this.jobProcessor = jobProcessor;
+            this.fileSystemTools = fileSystemTools;
             this.queueProvider = queueProvider;
-            this.wallWalker = wallWalker;
-            this.audioWalker = audioWalker;
-            this.photoWalker = photoWalker;
+            this.settings = settings.Value;
         }
 
         public async Task Run(CancellationToken token, ILog log)
         {
             log.Debug("Started");
 
-            // TODO: async token retrieval
-            var vkToken = tokenMagic.GetTokenFromScratch(log);
-
-            await vkApi.AuthorizeAsync(new ApiAuthParams()
-            {
-                AccessToken = vkToken.Token
-            });
-
+            await Prepare(log);
 
             var modes = settings.GetWorkingModes();
+            var identifiers = await GetIdentifiers();
+            log.Info($"Processing modes  : {JsonConvert.SerializeObject(modes)}");
+            log.Info($"Processing targets: {string.Join(", ", identifiers.Select(x => $"[{x.name} {x.id}]"))}");
+            try
+            {
+                foreach (var identifier in identifiers)
+                {
+                    var name = await vkApiUtils.GetName(identifier.id);
+                    var workDir = fileSystemTools.CreateSubdir(fileSystemTools.RootDir, name, CreateMode.OverwriteExisting);
+                    log.Info($"id [{identifier.id}], name [{name}], path [{workDir.FullName}]");
+                    foreach (var mode in modes)
+                    {
+                        AddJob(identifier.id, workDir, mode);
+                    }
+                }
+
+                await WaitUntilDone(token, log);
+            }
+            catch (OperationCanceledException)
+            {
+                log.Warn($"Abandoned {queueProvider.Jobs.Count} pending jobs");
+                log.Warn($"Abandoned {queueProvider.Downloads.Count} pending downloads");
+            }
+            finally
+            {
+                fileSystemTools.SaveCache(log);
+            }
+        }
+
+        private async Task<IReadOnlyList<(string name, long id)>> GetIdentifiers()
+        {
             var idTasks = settings.Targets
                 .Select(async x =>
                 {
@@ -69,54 +92,55 @@ namespace VOffline.Services
             var identifiers = allIds
                 .Distinct()
                 .ToImmutableList();
-            log.Debug($"Processing {JsonConvert.SerializeObject(modes)} for {string.Join(", ", identifiers.Select(x => $"[{x.name} {x.id}]"))}");
-            filesystemTools.LoadCache(log);
-            var downloaderTask = downloader.Process(token, log);
+            return identifiers;
+        }
 
-            try
-            {
-                foreach (var identifier in identifiers)
-                {
-                    var name = await vkApiUtils.GetName(identifier.id);
-                    var workDir = filesystemTools.CreateSubdir(filesystemTools.RootDir, name, CreateMode.OverwriteExisting);
-                    log.Info($"id [{identifier.id}], name [{name}], path [{workDir.FullName}]");
-                    foreach (var mode in modes)
-                    {
-                        await ProcessTarget(identifier.id, workDir, mode, token, log);
-                    }
-                }
+        private async Task Prepare(ILog log)
+        {
+            // TODO: async token retrieval
+            var vkToken = tokenMagic.GetTokenFromScratch(log);
 
-                queueProvider.Pending.CompleteAdding();
-                var downloadErrors = await downloaderTask;
-                foreach (var downloadError in downloadErrors)
-                {
-                    log.Warn($"Failed {downloadError.DesiredName}", downloadError.Errors.LastOrDefault());
-                }
-            }
-            catch (OperationCanceledException)
+            await vkApi.AuthorizeAsync(new ApiAuthParams()
             {
-                queueProvider.Pending.CompleteAdding();
-                log.Warn($"Abandoned {queueProvider.Pending.GetConsumingEnumerable().Count()} pending downloads");
-            }
-            finally
+                AccessToken = vkToken.Token
+            });
+
+            fileSystemTools.LoadCache(log);
+        }
+
+        private async Task WaitUntilDone(CancellationToken token, ILog log)
+        {
+            queueProvider.Jobs.CompleteAdding();
+            var jobsTask = queueProvider.Jobs.Start(jobProcessor.ProcessJob, token, log);
+            var downloaderTask = queueProvider.Downloads.Start(downloader.DownloadData, token, log);
+
+            await jobsTask;
+            queueProvider.Downloads.CompleteAdding();
+            await downloaderTask;
+
+            foreach (var jobError in queueProvider.Jobs.Failed)
             {
-                filesystemTools.SaveCache(log);
+                log.Warn($"Failed job: {jobError.Data}", jobError.Errors.Value.LastOrDefault());
+            }
+            foreach (var downloadError in queueProvider.Downloads.Failed)
+            {
+                log.Warn($"Failed download: {downloadError.Data.DesiredName}", downloadError.Errors.Value.LastOrDefault());
             }
         }
 
-        private async Task ProcessTarget(long id, DirectoryInfo dir, Mode mode, CancellationToken token, ILog log)
+        private void AddJob(long id, DirectoryInfo workDir, Mode mode)
         {
             // TODO: save raw requests/responses for future use?
             switch (mode)
             {
                 case Mode.Wall:
-                    await wallWalker.Process(new WallCategory(id), dir, token, log);
+                    queueProvider.Jobs.Add(new Nested<WallCategory>(new WallCategory(id), workDir, "Wall"));
                     break;
                 case Mode.Audio:
-                    await audioWalker.Process(new AudioCategory(id), dir, token, log);
+                    queueProvider.Jobs.Add(new Nested<AudioCategory>(new AudioCategory(id), workDir, "Audio"));
                     break;
                 case Mode.Photos:
-                    await photoWalker.Process(new PhotoCategory(id), dir, token, log);
+                    queueProvider.Jobs.Add(new Nested<PhotoCategory>(new PhotoCategory(id), workDir, "Photo"));
                     break;
                 case Mode.All:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, "This mode should have been replaced before processing");

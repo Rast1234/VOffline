@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,20 +8,18 @@ using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 using VOffline.Services.Vk;
 
-namespace VOffline.Services.Walkers
+namespace VOffline.Services.Handlers.Categories
 {
-    public class AudioWalker : WalkerBase<AudioCategory>
+    public class AudioCategoryHandler : CategoryHandlerBase<AudioCategory>
     {
         private readonly VkApiUtils vkApiUtils;
-        private readonly IWalker<PlaylistWithAudio> playlistWalker;
 
-        public AudioWalker(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, IWalker<PlaylistWithAudio> playlistWalker) : base(filesystemTools)
+        public AudioCategoryHandler(VkApiUtils vkApiUtils, FileSystemTools fileSystemTools) : base(fileSystemTools)
         {
             this.vkApiUtils = vkApiUtils;
-            this.playlistWalker = playlistWalker;
         }
 
-        public override async Task ProcessInternal(AudioCategory audio, DirectoryInfo workDir, CancellationToken token, ILog log)
+        public override async Task<IEnumerable<object>> ProcessInternal(AudioCategory audio, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
             var vkPlaylists = await vkApiUtils.GetAllPagesAsync(vkApiUtils.Playlists(audio.OwnerId), 200, token, log);
             log.Debug($"Audio: {vkPlaylists.Count} playlists");
@@ -40,13 +39,11 @@ namespace VOffline.Services.Walkers
 
             var allPlaylists = playlists.ToList();
             allPlaylists.Add(defaultPlaylist);
-
-            var allTasks = allPlaylists
+            return allPlaylists
                 .OrderBy(p => p.Playlist.CreateTime)
-                .Select(p => playlistWalker.Process(p, workDir, token, log));
-            await Task.WhenAll(allTasks);
+                .Select(p => new Nested<PlaylistWithAudio>(p, workDir, $"{p.Playlist.Title}"));
         }
 
-        public override DirectoryInfo GetWorkingDirectory(AudioCategory audio, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Audio", CreateMode.OverwriteExisting);
+        
     }
 }

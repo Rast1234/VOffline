@@ -1,4 +1,6 @@
-﻿namespace VOffline.Models.Storage
+﻿using System.IO;
+
+namespace VOffline.Models.Storage
 {
     public class WallCategory : Category
     {

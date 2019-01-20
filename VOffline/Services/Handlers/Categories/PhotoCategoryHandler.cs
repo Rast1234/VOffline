@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,20 +8,18 @@ using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 using VOffline.Services.Vk;
 
-namespace VOffline.Services.Walkers
+namespace VOffline.Services.Handlers.Categories
 {
-    public class PhotoWalker : WalkerBase<PhotoCategory>
+    public class PhotoCategoryHandler : CategoryHandlerBase<PhotoCategory>
     {
         private readonly VkApiUtils vkApiUtils;
-        private readonly IWalker<AlbumWithPhoto> albumWalker;
 
-        public PhotoWalker(VkApiUtils vkApiUtils, FilesystemTools filesystemTools, IWalker<AlbumWithPhoto> albumWalker) : base(filesystemTools)
+        public PhotoCategoryHandler(VkApiUtils vkApiUtils, FileSystemTools fileSystemTools) : base(fileSystemTools)
         {
             this.vkApiUtils = vkApiUtils;
-            this.albumWalker = albumWalker;
         }
 
-        public override async Task ProcessInternal(PhotoCategory photos, DirectoryInfo workDir, CancellationToken token, ILog log)
+        public override async Task<IEnumerable<object>> ProcessInternal(PhotoCategory photos, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
             var vkAlbums = await vkApiUtils.GetAllPagesAsync(vkApiUtils.PhotoAlbums(photos.OwnerId), int.MaxValue, token, log);
             var expandTasks = vkAlbums.Select(album => vkApiUtils.ExpandAlbum(album, token, log));
@@ -41,12 +40,9 @@ namespace VOffline.Services.Walkers
                 allAlbums.Add(defaultAlbum);
             }
 
-            var allTasks = allAlbums
-                .OrderBy(p => p.Album.Created)
-                .Select(p => albumWalker.Process(p, workDir, token, log));
-            await Task.WhenAll(allTasks);
+            return allAlbums
+                .OrderBy(a => a.Album.Created)
+                .Select(a => new Nested<AlbumWithPhoto>(a, workDir, $"{a.Album.Title}"));
         }
-
-        public override DirectoryInfo GetWorkingDirectory(PhotoCategory photos, DirectoryInfo parentDir) => filesystemTools.CreateSubdir(parentDir, "Photo", CreateMode.OverwriteExisting);
     }
 }

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using VkNet;
+using VkNet.Abstractions;
 using VkNet.Enums;
 using VkNet.Enums.Filters;
 using VkNet.Enums.SafetyEnums;
@@ -19,9 +20,9 @@ namespace VOffline.Services.Vk
 {
     public class VkApiUtils
     {
-        private readonly VkApi vkApi;
+        private readonly IVkApi vkApi;
 
-        public VkApiUtils(VkApi vkApi)
+        public VkApiUtils(IVkApi vkApi)
         {
             this.vkApi = vkApi;
         }

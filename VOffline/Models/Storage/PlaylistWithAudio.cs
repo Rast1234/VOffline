@@ -20,7 +20,6 @@ namespace VOffline.Models.Storage
 
         public PlaylistWithAudio(IReadOnlyList<Audio> audio)
         {
-
             this.Playlist = new AudioPlaylist
             {
                 Id = -1,

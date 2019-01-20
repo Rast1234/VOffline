@@ -6,64 +6,41 @@ using System.Threading.Tasks;
 using log4net;
 using Nito.AsyncEx;
 using VOffline.Models.Storage;
+using VOffline.Services.Queues;
 
 namespace VOffline.Services.Storage
 {
     public class BackgroundDownloader
     {
-        private readonly QueueProvider queueProvider;
-        private readonly FilesystemTools filesystemTools;
+        private readonly FileSystemTools fileSystemTools;
 
-        public BackgroundDownloader(QueueProvider queueProvider, FilesystemTools filesystemTools)
+        public BackgroundDownloader(FileSystemTools fileSystemTools)
         {
-            this.queueProvider = queueProvider;
-            this.filesystemTools = filesystemTools;
+            this.fileSystemTools = fileSystemTools;
         }
 
-        public async Task<List<IDownload>> Process(CancellationToken token, ILog log)
+        public async Task<IEnumerable<IDownload>> DownloadData(IDownload data, long i, CancellationToken token, ILog log)
         {
-            log.Debug($"{nameof(BackgroundDownloader)} started");
-            var errors = new AsyncProducerConsumerQueue<IDownload>();
-            IDownload item;
-            int success;
-
-            for (success = 0; (item = await GetItem(token)) != null;)
-            {
-                // TODO: add second queue, semaphore and support for retries
-                try
-                {
-                    await filesystemTools.WriteFileWithCompletionMark(item.Location, item.DesiredName, async () => await item.GetContent(token), token, log);
-                    success++;
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception e)
-                {
-                    item.AddError(e);
-                    await errors.EnqueueAsync(item, token);
-                    log.Warn($"Error downloading {item}", e);
-                }
-            }
-
-            errors.CompleteAdding();
-            var errorList = errors.GetConsumingEnumerable(token).ToList();
-            log.Info($"All downloads completed. {success} successful, {errorList.Count} failed");
-            return errorList;
+            await fileSystemTools.WriteFileWithCompletionMark(data.Location, data.DesiredName, async () => await data.GetContent(token), token, log);
+            return Nothing;
         }
 
-        private async Task<IDownload> GetItem(CancellationToken token)
-        {
-            try
-            {
-                return await queueProvider.Pending.DequeueAsync(token);
-            }
-            catch (InvalidOperationException)
-            {
-            }
+        private static readonly IEnumerable<IDownload> Nothing = Enumerable.Empty<IDownload>();
+    }
 
-            return null;
+    public class JobProcessor
+    {
+        private readonly FileSystemTools fileSystemTools;
+
+        public JobProcessor(FileSystemTools fileSystemTools)
+        {
+            this.fileSystemTools = fileSystemTools;
         }
+
+        public async Task<IEnumerable<object>> ProcessJob(object job, long i, CancellationToken token, ILog log)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }
