@@ -180,35 +180,9 @@ namespace VOffline.Services.Vk
 
         public async Task<PlaylistWithAudio> ExpandPlaylist(AudioPlaylist playlist, CancellationToken token, ILog log)
         {
-            var audios = await GetAllPagesAsync(AudiosInPlaylist(playlist), long.MaxValue, token, log, true);
+            var audios = await GetAllPagesAsync(AudiosInPlaylist(playlist), 100, token, log, true);
             log.Debug($"Expanded playlist {playlist.Title}: {audios.Count} audios");
             return new PlaylistWithAudio(playlist, audios);
-        }
-
-        public async Task<int> GetPhotoAlbumsSimpleCountAsync(long id, CancellationToken token, ILog log)
-        {
-            throw new NotImplementedException();
-            var errors = new Lazy<List<Exception>>();
-            try
-            {
-                return await vkApi.Photo.GetAlbumsCountAsync(id, null);
-            }
-            catch (Exception e)
-            {
-                errors.Value.Add(e);
-
-            }
-            token.ThrowIfCancellationRequested();
-            try
-            {
-                return await vkApi.Photo.GetAlbumsCountAsync(null, id);
-            }
-            catch (Exception e)
-            {
-                errors.Value.Add(e);
-
-            }
-            throw new Exception(string.Join("\n---------------------------------\n", errors.Value.Select(x => x.ToString())));
         }
 
         public async Task<AlbumWithPhoto> ExpandAlbum(Album album, CancellationToken token, ILog log)
@@ -250,6 +224,4 @@ namespace VOffline.Services.Vk
         private static readonly Regex PersonalPattern = new Regex(@"^(id)(\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex DigitalPattern = new Regex(@"^(-?\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     }
-
-    public delegate Task<VkCollection<T>> PageGetter<T>(decimal count, decimal offset);
 }

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +13,8 @@ namespace VOffline.Services.Storage
     {
         private readonly FileSystemTools fileSystemTools;
 
+        public long ProcessedBytes {get; private set; }
+
         public BackgroundDownloader(FileSystemTools fileSystemTools)
         {
             this.fileSystemTools = fileSystemTools;
@@ -21,26 +22,11 @@ namespace VOffline.Services.Storage
 
         public async Task<IEnumerable<IDownload>> DownloadData(IDownload data, long i, CancellationToken token, ILog log)
         {
-            await fileSystemTools.WriteFileWithCompletionMark(data.Location, data.DesiredName, async () => await data.GetContent(token), token, log);
+            var contentLength = await fileSystemTools.WriteFileWithCompletionMark(data.Location, data.DesiredName, async () => await data.GetContent(token), token, log);
+            ProcessedBytes += contentLength;
             return Nothing;
         }
 
         private static readonly IEnumerable<IDownload> Nothing = Enumerable.Empty<IDownload>();
-    }
-
-    public class JobProcessor
-    {
-        private readonly FileSystemTools fileSystemTools;
-
-        public JobProcessor(FileSystemTools fileSystemTools)
-        {
-            this.fileSystemTools = fileSystemTools;
-        }
-
-        public async Task<IEnumerable<object>> ProcessJob(object job, long i, CancellationToken token, ILog log)
-        {
-            throw new NotImplementedException();
-        }
-
     }
 }

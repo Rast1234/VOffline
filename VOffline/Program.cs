@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Async;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -44,67 +45,11 @@ namespace VOffline
         public static async Task<int> Main(string[] args)
         {
             var log = ConfigureLog4Net();
-            var cts = CreateCancellationTokenSource();
-
             try
             {
-                
                 ConfigureJsonSerializer();
-
-                var serviceCollection = new ServiceCollection();
-
-                var configuration = new ConfigurationBuilder()
-                    .AddJsonFile("appsettings.json")
-                    .AddUserSecrets<Settings>()
-                    .AddUserSecrets<VkCredentials>()
-                    .Build();
-                serviceCollection.Configure<Settings>(configuration.GetSection("Settings"));
-                serviceCollection.Configure<VkCredentials>(configuration.GetSection("VkCredentials"));
-
-                serviceCollection.AddSingleton<FileCache<VkToken>>();
-                serviceCollection.AddSingleton<FileCache<GoogleCredentials>>();
-                serviceCollection.AddSingleton<FileCache<GoogleCheckIn>>();
-                serviceCollection.AddSingleton<Random>();
-                serviceCollection.AddSingleton<GoogleHttpRequests>();
-                serviceCollection.AddSingleton<VkHttpRequests>();
-
-                serviceCollection.AddSingleton<IVkApi>(s => CreateVkApi(s, cts, log));
-                serviceCollection.AddSingleton<FileSystemTools>();
-                serviceCollection.AddSingleton<QueueProvider>();
-                
-
-                serviceCollection.AddTransient<IHandler<Nested<AudioCategory>>, AudioCategoryHandler>();
-                serviceCollection.AddTransient<IHandler<Nested<PhotoCategory>>, PhotoCategoryHandler>();
-                serviceCollection.AddTransient<IHandler<Nested<WallCategory>>, WallCategoryHandler>();
-                serviceCollection.AddTransient<IHandler<Nested<PostComments>>, PostCommentsCategoryHandler>();
-                serviceCollection.AddTransient<IHandler<Nested<Post>>, PostCategoryHandler>();
-                serviceCollection.AddTransient<IHandler<Nested<Comment>>, CommentCategoryHandler>();
-                serviceCollection.AddTransient<IHandler<Nested<PlaylistWithAudio>>, PlaylistCategoryHandler>();
-                serviceCollection.AddTransient<IHandler<Nested<AlbumWithPhoto>>, AlbumCategoryHandler>();
-
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<Album>>, AlbumAttachmentHandler>();
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<Audio>>, AudioAttachmentHandler>();
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<AudioCover>>, AudioCoverAttachmentHandler>();
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<AudioPlaylist>>, AudioPlaylistAttachmentHandler>();
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<Document>>, DocumentAttachmentHandler>();
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<Link>>, LinkAttachmentHandler>();
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<Photo>>, PhotoAttachmentHandler>();
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<Poll>>, PollAttachmentHandler>();
-                serviceCollection.AddTransient<IHandler<OrderedAttachment<Video>>, VideoAttachmentHandler>();
-
-                serviceCollection.AddSingleton<IServiceProvider>(s => s);  // service locator hack
-
-                serviceCollection.AddTransient<ILog>(provider => LogManager.GetLogger(Assembly.GetEntryAssembly(), typeof(Program)));
-                serviceCollection.AddTransient<VkApiUtils>();
-                serviceCollection.AddTransient<BackgroundDownloader>();
-                serviceCollection.AddTransient<JobProcessor>();
-                serviceCollection.AddTransient<AndroidAuth>();
-                serviceCollection.AddTransient<VkTokenReceiver>();
-                serviceCollection.AddTransient<MTalk>();
-                serviceCollection.AddTransient<TokenMagic>();
-                serviceCollection.AddTransient<Logic>();
-
-                var services = serviceCollection.BuildServiceProvider();
+                var cts = CreateCancellationTokenSource();
+                var services = ConfigureServices(cts, log);
                 await services.GetRequiredService<Logic>().Run(cts.Token, log);
                 return 0;
             }
@@ -113,6 +58,76 @@ namespace VOffline
                 log.Fatal(e);
                 throw;
             }
+            finally
+            {
+                if (Debugger.IsAttached)
+                {
+                    log.Debug($"Press enter to end process");
+                    Console.ReadLine();
+                }
+            }
+        }
+
+        private static ServiceProvider ConfigureServices(CancellationTokenSource cts, ILog log)
+        {
+            var serviceCollection = new ServiceCollection();
+
+            var configuration = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json")
+                .AddUserSecrets<Settings>()
+                .AddUserSecrets<VkCredentials>()
+                .Build();
+            serviceCollection.Configure<Settings>(configuration.GetSection("Settings"));
+            serviceCollection.Configure<VkCredentials>(configuration.GetSection("VkCredentials"));
+
+            serviceCollection.AddSingleton<FileCache<VkToken>>();
+            serviceCollection.AddSingleton<FileCache<GoogleCredentials>>();
+            serviceCollection.AddSingleton<FileCache<GoogleCheckIn>>();
+            serviceCollection.AddSingleton<Random>();
+            serviceCollection.AddSingleton<GoogleHttpRequests>();
+            serviceCollection.AddSingleton<VkHttpRequests>();
+
+            serviceCollection.AddSingleton<IVkApi>(s => CreateVkApi(s, cts, log));
+            serviceCollection.AddSingleton<FileSystemTools>();
+            serviceCollection.AddSingleton<QueueProvider>();
+            serviceCollection.AddSingleton<BackgroundDownloader>();
+            serviceCollection.AddSingleton<ConsoleProgress>();
+
+
+            serviceCollection.AddTransient<IHandler<Nested<AudioCategory>>, AudioCategoryHandler>();
+            serviceCollection.AddTransient<IHandler<Nested<PhotoCategory>>, PhotoCategoryHandler>();
+            serviceCollection.AddTransient<IHandler<Nested<WallCategory>>, WallCategoryHandler>();
+            serviceCollection.AddTransient<IHandler<Nested<PostComments>>, PostCommentsCategoryHandler>();
+            serviceCollection.AddTransient<IHandler<Nested<Post>>, PostCategoryHandler>();
+            serviceCollection.AddTransient<IHandler<Nested<Comment>>, CommentCategoryHandler>();
+            serviceCollection.AddTransient<IHandler<Nested<PlaylistWithAudio>>, PlaylistCategoryHandler>();
+            serviceCollection.AddTransient<IHandler<Nested<AlbumWithPhoto>>, AlbumCategoryHandler>();
+
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<Album>>, AlbumAttachmentHandler>();
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<Audio>>, AudioAttachmentHandler>();
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<AudioCover>>, AudioCoverAttachmentHandler>();
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<AudioPlaylist>>, AudioPlaylistAttachmentHandler>();
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<Document>>, DocumentAttachmentHandler>();
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<Link>>, LinkAttachmentHandler>();
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<Photo>>, PhotoAttachmentHandler>();
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<Poll>>, PollAttachmentHandler>();
+            serviceCollection.AddTransient<IHandler<OrderedAttachment<Video>>, VideoAttachmentHandler>();
+
+            serviceCollection.AddTransient<IHandler<IDownload>, DownloadHandler>();
+
+            serviceCollection.AddSingleton<IServiceProvider>(s => s); // service locator hack
+
+            serviceCollection.AddTransient<ILog>(provider => LogManager.GetLogger(Assembly.GetEntryAssembly(), typeof(Program)));
+            serviceCollection.AddTransient<VkApiUtils>();
+            serviceCollection.AddTransient<Reflector>();
+            serviceCollection.AddTransient<AndroidAuth>();
+            serviceCollection.AddTransient<VkTokenReceiver>();
+            serviceCollection.AddTransient<MTalk>();
+            serviceCollection.AddTransient<TokenMagic>();
+            serviceCollection.AddTransient<Logic>();
+
+            var services = serviceCollection.BuildServiceProvider();
+            return services;
         }
 
         private static IVkApi CreateVkApi(IServiceProvider services, CancellationTokenSource cancellationTokenSource, ILog log)

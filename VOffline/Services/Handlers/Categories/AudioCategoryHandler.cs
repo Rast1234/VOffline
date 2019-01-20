@@ -27,7 +27,7 @@ namespace VOffline.Services.Handlers.Categories
             var playlists = await Task.WhenAll(expandTasks);
             log.Debug($"Audio: {playlists.Sum(p => p.Audio.Count)} in {playlists.Length} playlists");
 
-            var allAudios = await vkApiUtils.GetAllPagesAsync(vkApiUtils.Audios(audio.OwnerId), long.MaxValue, token, log);
+            var allAudios = await vkApiUtils.GetAllPagesAsync(vkApiUtils.Audios(audio.OwnerId), 100, token, log);
             var audioInPlaylists = playlists
                 .SelectMany(p => p.Audio.Select(t => t.Id))
                 .ToHashSet();

@@ -147,5 +147,13 @@ namespace VOffline.Services.Queues
                 return null;
             }
         }
+
+        public override string ToString()
+        {
+            lock (Lock)
+            {
+                return $"{Processed}/{Added}, {Failed.Count} failed";
+            }
+        }
     }
 }

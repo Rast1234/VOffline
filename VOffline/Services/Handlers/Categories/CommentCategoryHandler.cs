@@ -18,9 +18,9 @@ namespace VOffline.Services.Handlers.Categories
         {
         }
 
-        public override async Task<IEnumerable<object>> ProcessInternal(Comment comment, DirectoryInfo workDir, CancellationToken token, ILog log)
+        public override Task<IEnumerable<object>> ProcessInternal(Comment comment, DirectoryInfo workDir, CancellationToken token, ILog log)
         {
-            return GetAttachments(comment, workDir);
+            return Task.FromResult(GetAttachments(comment, workDir));
         }
 
         private IEnumerable<object> GetAttachments(Comment comment, DirectoryInfo workDir)

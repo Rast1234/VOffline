@@ -35,6 +35,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
     <PackageReference Include="Nito.AsyncEx" Version="5.0.0-pre-05" />
     <PackageReference Include="RestSharp" Version="106.6.5" />
+    <PackageReference Include="ShellProgressBar" Version="4.2.0" />
     <PackageReference Include="VkNet" Version="1.41.0" />
   </ItemGroup>
 

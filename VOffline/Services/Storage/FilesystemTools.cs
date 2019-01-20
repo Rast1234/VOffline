@@ -161,14 +161,14 @@ namespace VOffline.Services.Storage
             cache[file.FullName] = DateTime.Now;
         }
 
-        public async Task WriteFileWithCompletionMark(DirectoryInfo parent, string desiredName, Func<Task<byte[]>> contentTaskFunc, CancellationToken token, ILog log)
+        public async Task<long> WriteFileWithCompletionMark(DirectoryInfo parent, string desiredName, Func<Task<byte[]>> contentTaskFunc, CancellationToken token, ILog log)
         {
             var validName = MakeValidName(desiredName);
             var file = new FileInfo(CombineCutPath(parent, validName));
             if (cache.ContainsKey(file.FullName))
             {
                 log.Debug($"Skipping [{file.FullName}] because marked as competed");
-                return;
+                return 0;
             }
 
             var content = await contentTaskFunc();
@@ -183,6 +183,7 @@ namespace VOffline.Services.Storage
             }
 
             cache[file.FullName] = DateTime.Now;
+            return content?.Length ?? 0;
         }
 
         private DirectoryInfo MkDir(string path)

@@ -27,20 +27,22 @@ namespace VOffline.Services
         private readonly IVkApi vkApi;
         private readonly VkApiUtils vkApiUtils;
         private readonly BackgroundDownloader downloader;
-        private readonly JobProcessor jobProcessor;
+        private readonly Reflector reflector;
         private readonly FileSystemTools fileSystemTools;
         private readonly QueueProvider queueProvider;
+        private readonly ConsoleProgress consoleProgress;
         private readonly Settings settings;
 
-        public Logic(TokenMagic tokenMagic, IVkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, JobProcessor jobProcessor, FileSystemTools fileSystemTools, QueueProvider queueProvider, IOptionsSnapshot<Settings> settings)
+        public Logic(TokenMagic tokenMagic, IVkApi vkApi, VkApiUtils vkApiUtils, BackgroundDownloader downloader, Reflector reflector, FileSystemTools fileSystemTools, QueueProvider queueProvider, ConsoleProgress consoleProgress, IOptionsSnapshot<Settings> settings)
         {
             this.tokenMagic = tokenMagic;
             this.vkApi = vkApi;
             this.vkApiUtils = vkApiUtils;
             this.downloader = downloader;
-            this.jobProcessor = jobProcessor;
+            this.reflector = reflector;
             this.fileSystemTools = fileSystemTools;
             this.queueProvider = queueProvider;
+            this.consoleProgress = consoleProgress;
             this.settings = settings.Value;
         }
 
@@ -111,12 +113,15 @@ namespace VOffline.Services
         private async Task WaitUntilDone(CancellationToken token, ILog log)
         {
             queueProvider.Jobs.CompleteAdding();
-            var jobsTask = queueProvider.Jobs.Start(jobProcessor.ProcessJob, token, log);
+            var jobsTask = queueProvider.Jobs.Start(reflector.ProcessJob, token, log);
             var downloaderTask = queueProvider.Downloads.Start(downloader.DownloadData, token, log);
+            var progressTask = consoleProgress.BackgroundUpdate(TimeSpan.FromSeconds(0.5), token);
 
             await jobsTask;
             queueProvider.Downloads.CompleteAdding();
             await downloaderTask;
+            consoleProgress.Stop();
+            await progressTask;
 
             foreach (var jobError in queueProvider.Jobs.Failed)
             {
@@ -148,7 +153,5 @@ namespace VOffline.Services
                     throw new NotImplementedException();
             }
         }
-
-       
     }
 }
