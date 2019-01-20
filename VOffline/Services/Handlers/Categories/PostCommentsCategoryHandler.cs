@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using VkNet.Model;
-using VkNet.Model.Attachments;
 using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 using VOffline.Services.Vk;

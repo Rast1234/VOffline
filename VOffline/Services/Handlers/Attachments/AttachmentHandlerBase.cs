@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using VkNet.Model.Attachments;
 using VOffline.Models.Storage;
 
 namespace VOffline.Services.Handlers.Attachments

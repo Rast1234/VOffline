@@ -1,13 +1,5 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using log4net;
-using VkNet.Model;
+﻿using System.Linq;
 using VkNet.Model.Attachments;
-using VOffline.Services.Storage;
 
 namespace VOffline.Services.Vk
 {

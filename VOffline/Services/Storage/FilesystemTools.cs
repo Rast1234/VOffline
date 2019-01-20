@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -9,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 using VOffline.Models;
 
 namespace VOffline.Services.Storage

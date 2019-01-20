@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using Newtonsoft.Json;
 using VOffline.Models.Storage;
 using VOffline.Services.Storage;
 

@@ -3,9 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using Nito.AsyncEx;
 using VOffline.Models.Storage;
-using VOffline.Services.Queues;
 
 namespace VOffline.Services.Storage
 {

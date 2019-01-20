@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using VkNet;
 using VkNet.Abstractions;
 using VkNet.Enums;
 using VkNet.Enums.Filters;
