@@ -1,7 +1,7 @@
 # VOffline
 Evacuate from VK! 🚚
 
-### This tool can save almost everything from public VK content (wall, posts, comments, photos, polls, **audio**).
+#### This tool can save almost everything from public VK content (wall, posts, comments, photos, polls). Audio and playlists too!
 
 
 It works fine but needs some polishing and documentation is not yet done.
