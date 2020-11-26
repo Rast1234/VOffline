@@ -251,9 +251,16 @@ namespace VOffline.Services.Storage
             throw new PathTooLongException($"Tried to shorten [{name}] to [{namePart}{extensionPart}] but path [{parentDir.FullName}] is still too long");
         }
 
-        private static string MakeValidName(string value) => string
-            .Join("_", value.Split(AllBadChars))
-            .Trim();
+        private static string MakeValidName(string value)
+        {
+            // fix stuff like "image.jpg_foo=bar&blah=blah" without losing extension
+            var namePart = string.Join("_", Path.GetFileNameWithoutExtension(value).Split(AllBadChars)).Trim();
+            var extension = Path.GetExtension(value)
+                .Split('?').First()
+                .Split('_').First();
+            var extensionPart = string.Join("_", extension.Split(AllBadChars)).Trim();
+            return $"{namePart}{extensionPart}";
+        }
 
         private static readonly char[] AllBadChars =
             Path.GetInvalidFileNameChars()
