@@ -27,6 +27,11 @@ namespace VOffline.Services.Storage
             RootDir = MkDir(settings.Value.OutputPath);
             cacheFile = new FileInfo(CombineCutPath(RootDir, CacheFilename));
             cache = new ConcurrentDictionary<string, DateTime>();
+
+            if (!cacheFile.Exists)
+            {
+                cacheFile.Create()?.Dispose();
+            }
         }
 
         public void LoadCache(ILog log)

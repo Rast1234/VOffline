@@ -3,8 +3,9 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
-    <UsersecretsId>26938AF3-7336-429C-A3AF-2D3048ACB226</UsersecretsId>
     <LangVersion>latest</LangVersion>
+    <RootNamespace>VOffline</RootNamespace>
+    <UserSecretsId>93680df2-87fc-4326-b623-001d5725f6ae</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

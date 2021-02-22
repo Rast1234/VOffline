@@ -94,7 +94,9 @@ namespace VOffline.Services.Vk
             }
             else
             {
-                log.Warn($"Video {video.Id} [{video.Title}] has no links");
+                log.Warn($"Video {video.Id} [{video.Title}] has no links. Trying to compose vk url");
+                var file = filesystemTools.CreateFile(dir, $"{i} {video.Id}.txt", CreateMode.OverwriteExisting);
+                File.WriteAllText(file.FullName, $"https://vk.com/video{video.OwnerId}_{video.Id}");
             }
         }
 
@@ -201,6 +203,7 @@ namespace VOffline.Services.Vk
             {
                 sb.Append($", reply to user {comment.ReplyToUserId} comment {comment.ReplyToCommentId}");
             }
+
             return sb.ToString();
         }
 
