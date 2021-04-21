@@ -153,10 +153,21 @@ namespace VOffline.Services.Vk
                 .Select(pageNumber => (ulong)pageNumber * pageSize)
                 .Select(async offset =>
                 {
-                    var page = await pageGetter(pageSize, offset);
-                    log.Debug($"{0}/{total}, {page.Count} items");
+                    VkCollection<T> page = null;
+                    try
+                    {
+                        page = await pageGetter(pageSize, offset);
+                        log.Debug($"{offset}/{total}, {page.Count} items");
+                    }
+                    catch (Exception e)
+                    {
+                        log.Warn($"Error getting page {offset}/{total}. Getting page by smaller chunks...", e);
+                        var items = await GetSinglePage(pageGetter, offset, pageSize, token, log);
+                        page = new VkCollection<T>(0, items);
+                    }
+
                     token.ThrowIfCancellationRequested();
-                    return page;
+                    return page ?? new VkCollection<T>(0, new List<T>());
                 });
             var pages = await Task.WhenAll(pageTasks);
             foreach (var page in pages)
@@ -177,6 +188,29 @@ namespace VOffline.Services.Vk
             return result.ToList();
         }
 
+        private async Task<IEnumerable<T>> GetSinglePage<T>(PageGetter<T> pageGetter, decimal offset, decimal length, CancellationToken token, ILog log)
+        {
+            var pageTasks = Enumerable.Range((int)offset, (int)length)
+                .Select(async x =>
+                {
+                    VkCollection<T> page = null;
+                    try
+                    {
+                        page = await pageGetter(1, offset);
+                        log.Debug($"{x}/{length} item from bad page");
+                    }
+                    catch (Exception e)
+                    {
+                        log.Warn($"Error getting item {x}", e);
+                    }
+
+                    token.ThrowIfCancellationRequested();
+                    return page ?? new VkCollection<T>(0, new List<T>());
+                });
+            var pages = await Task.WhenAll(pageTasks);
+            return pages.SelectMany(x => x);
+        }
+        
         public async Task<PlaylistWithAudio> ExpandPlaylist(AudioPlaylist playlist, CancellationToken token, ILog log)
         {
             var audios = await GetAllPagesAsync(AudiosInPlaylist(playlist), long.MaxValue, token, log, true);
